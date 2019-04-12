@@ -1,0 +1,282 @@
+#!/bin/bash
+#
+# This function verifies that the calling function received the correct
+# number of arguments.
+#
+# params:
+# $1 - the number of agrs passed to the function being verified
+# $2 - the min number of args for function
+# $3 - the max number of args for function
+#
+# returns:
+clean () {
+    rm -f *"$$"
+}
+
+check_num_args () {
+    if [ "$1" -gt "$3" ]; then 
+        >&2 echo "error: too many arguments"
+       return 1
+    elif [ "$1" -lt "$2" ]; then
+        >&2 echo "error: too few arguments"
+       return 1
+    else
+       return 0
+    fi
+}
+
+dims () {
+    # Count rows.
+    rows=0
+    while read line
+    do
+        rows=`expr $rows + 1`
+    done < "./$1"
+
+    # Count cols.
+    read -r cols_line < "$1"
+    cols=$(echo "$cols_line" | wc -w  | cut -d $'\t' -f1)
+
+    # Display results.
+    echo "$rows $cols"
+    exit 0
+}
+
+transpose() {
+    # Count rows.
+    rows=0
+    while read line
+    do
+        rows=`expr $rows + 1`
+    done < "./$1"
+
+    # Count cols.
+    read -r cols_line < "$1"
+    cols=$(echo "$cols_line" | wc -w  | cut -d $'\t' -f1)
+
+    transpose_path="./transpose$$"
+    touch "$transpose_path"
+
+    col=1
+    while [ "$col" -le "$cols" ]
+    do
+        temp_row_path="./temprow$$"
+        touch "$temp_row_path"
+
+        while read row
+        do
+            echo "$row" | cut -f "$col" -d $'\t' | tr -d $'\n' >> "$temp_row_path"
+            echo -n $'\t' >> "$temp_row_path"
+        done <"./$1"
+
+        col=`expr "$col" + 1`
+        next_row=$( cat "$temp_row_path" )
+        next_row=${next_row%?}
+        echo "$next_row" >> "$transpose_path"
+        rm "$temp_row_path"
+    done
+    cat "$transpose_path"
+
+    return 0
+}
+
+mean() {
+    # Count rows.
+    rows=0
+    while read line
+    do
+        rows=`expr $rows + 1`
+    done < "./$1"
+
+    # Count cols.
+    read -r cols_line < "$1"
+    cols=$(echo "$cols_line" | wc -w  | cut -d $'\t' -f1)
+
+    mean_path="./mean$$"
+    touch "$mean_path"
+
+    col=1
+    while [ "$col" -le "$cols" ]
+    do
+        col_sum=0
+        while read row
+        do
+            cell_val=$(echo "$row" | cut -f "$col" -d $'\t' | tr -d $'\n')
+            col_sum=`expr $col_sum + $cell_val`
+        done <"./$1"
+
+        mean="$((($col_sum + ($rows / 2) * (($col_sum > 0) * 2 - 1)) / $rows))"
+        col=$(expr "$col" + 1)
+        echo -n "$mean" >> "$mean_path"
+        echo -n $'\t' >> "$mean_path"
+    done
+    mean_row=$( cat "$mean_path" )
+    mean_row=${mean_row%?}
+    echo "$mean_row" > "$mean_path"
+    cat "$mean_path"
+    rm "$mean_path"
+
+    return 0
+}
+
+add() {
+    cols=$(echo "$(dims "$1")" | cut -d $' ' -f2)
+    add_file_path="addfile$$"
+    while read m1row <&3 && read m2row <&4; do
+        new_row=""
+        col=1
+        while [ "$col" -le "$cols" ]; do
+            m1val=$(echo "$m1row" | cut -f "$col" -d $'\t' | tr -d $'\n')
+            m2val=$(echo "$m2row" | cut -f "$col" -d $'\t' | tr -d $'\n')
+            sumval=$(expr "$m1val" + "$m2val")
+            new_row="$new_row$sumval	"
+            col=$(expr "$col" + 1)
+        done
+        new_row=${new_row%?}
+        echo "$new_row" >> "$add_file_path"
+
+    done 3<"$1" 4<"$2"
+    cat "$add_file_path"
+
+    return 0
+}
+
+multiply() {
+    mult_file_path="multfile$$"
+    m2_temp_path="m2$$"
+    transpose "$2" > "$m2_temp_path"
+    cols=$(echo "$(dims "$1")" | cut -d $' ' -f2)
+    while read m1row <&3 ; do
+        new_row=""
+        while read m2row <&4; do
+            row_sum=0
+            col=1
+
+            while [ "$col" -le "$cols" ]; do
+                m1val=$(echo "$m1row" | cut -f "$col" -d $'\t' | tr -d $'\n')
+                m2val=$(echo "$m2row" | cut -f "$col" -d $'\t' | tr -d $'\n')
+                prod_val=$(expr "$m1val" \* "$m2val")
+                row_sum=$(expr "$row_sum" + "$prod_val")
+                col=$(expr "$col" + 1)
+            done
+            new_row="$new_row$row_sum	"
+
+        done 4<"$m2_temp_path"
+        new_row=${new_row%?}
+        echo "$new_row" >> "$mult_file_path"
+
+    done 3<"$1"     
+   
+    cat "$mult_file_path"
+
+    return 0
+}
+
+trap clean EXIT
+
+# Display matrix dimensions.
+if [ "$1" = "dims" ]; then
+    inputfilepath="inputfile$$"
+    check_num_args "$#" "1" "2"
+
+    if [ "$?" -ne "0" ]; then
+        exit 1
+    elif [ "$#" = "1" ]; then
+        cat > "$inputfilepath"
+    else
+        inputfilepath=$2
+    fi
+
+    if test -r "$inputfilepath" -a -f "$inputfilepath"; then
+        dims "$inputfilepath"
+    else
+        >&2 echo "error: $inputfilepath is not a readable file"
+        exit 1
+    fi
+fi
+
+# Display transpose.
+if [ "$1" = "transpose" ]; then
+    inputfilepath="inputfile$$"
+    check_num_args "$#" "1" "2"
+
+    if [ "$?" -ne "0" ]; then
+        exit 1
+    elif [ "$#" = "1" ]; then
+        cat > "$inputfilepath"
+    else
+        inputfilepath=$2
+    fi
+
+    if test -r "$inputfilepath" -a -f "$inputfilepath"; then
+        transpose "$inputfilepath"
+    else
+        >&2 echo "error: $inputfilepath is not a readable file"
+        exit 1
+    fi
+fi
+
+# Calculate mean.
+if [ "$1" = "mean" ]; then
+    inputfilepath="inputfile$$"
+    check_num_args "$#" "1" "2"
+
+    if [ "$?" -ne "0" ]; then
+        exit 1
+    elif [ "$#" = "1" ]; then
+        cat > "$inputfilepath"
+    else
+        inputfilepath=$2
+    fi
+
+    if test -r "$inputfilepath" -a -f "$inputfilepath"; then
+        mean "$inputfilepath"
+    else
+        >&2 echo "error: $inputfilepath is not a readable file"
+        exit 1
+    fi
+fi
+
+# Add matrices  
+if [ "$1" = "add" ]; then
+    check_num_args "$#" "3" "3"
+
+    if [ "$?" -ne "0" ]; then
+        exit 1
+    fi
+    matrixfile1="$2"
+    matrixfile2="$3"
+
+    if ! test -r "$matrixfile1" -a -f "$matrixfile1" -a -r \
+        "$matrixfile2" -a -f "$matrixfile2"; then
+        >&2 echo "error: $inputfilepath is not a readable file"
+        exit 1
+    elif [ "$(dims "$matrixfile1")" != "$(dims "$matrixfile2")" ]; then
+        >&2 echo "error: matrices have different dimensions"
+        exit 1
+    else
+        add "$matrixfile1" "$matrixfile2"
+    fi
+fi
+
+# Add matrices  
+if [ "$1" = "multiply" ]; then
+    check_num_args "$#" "3" "3"
+
+    if [ "$?" -ne "0" ]; then
+        exit 1
+    fi
+    matrixfile1="$2"
+    matrixfile2="$3"
+
+    if ! test -r "$matrixfile1" -a -f "$matrixfile1" -a -r \
+        "$matrixfile2" -a -f "$matrixfile2"; then
+        >&2 echo "error: $inputfilepath is not a readable file"
+        exit 1
+    elif [ "$(dims "$matrixfile1" | cut -d " " -f2 )" != "$(dims "$matrixfile2" | cut -d " " -f1)" ]; then
+        >&2 echo "error: matrices have dimensions that prevent multiplication."
+        exit 1
+    else
+        multiply "$matrixfile1" "$matrixfile2"
+    fi
+fi
