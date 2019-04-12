@@ -193,10 +193,9 @@ if [ "$1" = "dims" ]; then
         >&2 echo "error: $inputfilepath is not a readable file"
         exit 1
     fi
-fi
 
 # Display transpose.
-if [ "$1" = "transpose" ]; then
+elif [ "$1" = "transpose" ]; then
     inputfilepath="inputfile$$"
     check_num_args "$#" "1" "2"
 
@@ -214,10 +213,9 @@ if [ "$1" = "transpose" ]; then
         >&2 echo "error: $inputfilepath is not a readable file"
         exit 1
     fi
-fi
 
 # Calculate mean.
-if [ "$1" = "mean" ]; then
+elif [ "$1" = "mean" ]; then
     inputfilepath="inputfile$$"
     check_num_args "$#" "1" "2"
 
@@ -235,10 +233,9 @@ if [ "$1" = "mean" ]; then
         >&2 echo "error: $inputfilepath is not a readable file"
         exit 1
     fi
-fi
 
 # Add matrices  
-if [ "$1" = "add" ]; then
+elif [ "$1" = "add" ]; then
     check_num_args "$#" "3" "3"
 
     if [ "$?" -ne "0" ]; then
@@ -257,10 +254,9 @@ if [ "$1" = "add" ]; then
     else
         add "$matrixfile1" "$matrixfile2"
     fi
-fi
 
 # Add matrices  
-if [ "$1" = "multiply" ]; then
+elif [ "$1" = "multiply" ]; then
     check_num_args "$#" "3" "3"
 
     if [ "$?" -ne "0" ]; then
@@ -279,4 +275,7 @@ if [ "$1" = "multiply" ]; then
     else
         multiply "$matrixfile1" "$matrixfile2"
     fi
+else
+    >&2 echo "error: invalid command"
+    exit 1
 fi
