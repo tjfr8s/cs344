@@ -2,7 +2,7 @@
 
 # This function removes all of the temp files used by the program.
 clean () {
-    rm -f *"$$"
+    rm -f ./*"$$"
 }
 
 # This function verifies that the calling function received the correct
@@ -40,7 +40,7 @@ dims () {
 
     while read line
     do
-        rows=`expr $rows + 1`
+        rows=$((rows + 1))
     done < "./$1"
 
     # Count the number of columns using wc.
@@ -64,7 +64,7 @@ transpose() {
     rows=0
     while read line
     do
-        rows=`expr $rows + 1`
+        rows=$((rows + 1))
     done < "./$1"
 
     # Count cols.
@@ -89,7 +89,7 @@ transpose() {
                 >> "$temp_row_path"
             echo -n $'\t' >> "$temp_row_path"
         done <"./$1"
-        col=`expr "$col" + 1`
+        col=$((col + 1))
 
         # Remove trailing whitespace from the new row and add it to the output
         # matrix
@@ -115,7 +115,7 @@ mean() {
     rows=0
     while read line
     do
-        rows=`expr $rows + 1`
+        rows=$((rows + 1))
     done < "./$1"
 
     # Count cols.
@@ -135,13 +135,13 @@ mean() {
         while read row
         do
             cell_val=$(echo "$row" | cut -f "$col" -d $'\t' | tr -d $'\n')
-            col_sum=`expr $col_sum + $cell_val`
+            col_sum=$((col_sum + cell_val))
         done <"./$1"
 
         # Calculate the column's mean using appropriate rounding method and 
         # add it to the output.
-        mean="$((($col_sum + ($rows / 2) * (($col_sum > 0) * 2 - 1)) / $rows))"
-        col=$(expr "$col" + 1)
+        mean="$(((col_sum + (rows / 2) * ((col_sum > 0) * 2 - 1)) / rows))"
+        col=$((col + 1))
         echo -n "$mean" >> "$mean_path"
         echo -n $'\t' >> "$mean_path"
     done
@@ -166,7 +166,7 @@ mean() {
 add() {
     # Concurrently read in a row from each matrix until all rows have been 
     # visited.
-    cols=$(echo "$(dims "$1")" | cut -d $' ' -f2)
+    cols=$(dims "$1" | cut -d $' ' -f2)
     add_file_path="addfile$$"
     while read m1row <&3 && read m2row <&4; do
 
@@ -177,9 +177,9 @@ add() {
         while [ "$col" -le "$cols" ]; do
             m1val=$(echo "$m1row" | cut -f "$col" -d $'\t' | tr -d $'\n')
             m2val=$(echo "$m2row" | cut -f "$col" -d $'\t' | tr -d $'\n')
-            sumval=$(expr "$m1val" + "$m2val")
+            sumval=$((m1val + m2val))
             new_row="$new_row$sumval	"
-            col=$(expr "$col" + 1)
+            col=$((col + 1))
         done
 
         # Trim whitespace from the new row.
@@ -208,7 +208,7 @@ multiply() {
 
     # for each row in the first matrix, multiply it elementwise  with each row 
     # in the transpose of the second matrix and sum thse values. Each of these
-    cols=$(echo "$(dims "$1")" | cut -d $' ' -f2)
+    cols=$(dims "$1" | cut -d $' ' -f2)
     while read m1row <&3 ; do
         new_row=""
         while read m2row <&4; do
@@ -218,9 +218,9 @@ multiply() {
             while [ "$col" -le "$cols" ]; do
                 m1val=$(echo "$m1row" | cut -f "$col" -d $'\t' | tr -d $'\n')
                 m2val=$(echo "$m2row" | cut -f "$col" -d $'\t' | tr -d $'\n')
-                prod_val=$(expr "$m1val" \* "$m2val")
-                row_sum=$(expr "$row_sum" + "$prod_val")
-                col=$(expr "$col" + 1)
+                prod_val=$((m1val * m2val))
+                row_sum=$((row_sum + prod_val))
+                col=$((col + 1))
             done
             # Add each "product sum" created using a particular row from the
             # first matrix to the same row in the resulting matrix.
