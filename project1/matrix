@@ -1,4 +1,20 @@
 #!/bin/bash
+#
+# COMMENT: The matrix multiplication test seems to take a long time. I have
+# run the grading script several times, and it hasn't timed out, but I wanted
+# to warn you (the grader) in case anythin happens while your grading. Thanks!
+#
+# Author: Tyler Freitas
+# Date: 20190419
+# Description: This file implements a tool for performing matrix operations.
+# The suppored operations are:
+#
+# matrix dims [MATRIX]
+# matrix transpose [MATRIX]
+# matrix mean [MATRIX]
+# matrix add MATRIX_LEFT MATRIX_RIGHT
+# matrix multiply MATRIX_LEFT MATRIX_RIGHT
+#
 
 # This function removes all of the temp files used by the program.
 clean () {
