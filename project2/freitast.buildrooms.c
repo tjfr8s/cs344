@@ -28,6 +28,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdbool.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 
 #define ROOM_GRAPH_SIZE 7
 
@@ -58,6 +62,96 @@ struct Room {
     int            numConnections;
 };
 
+
+void print_room_name(struct Room* room) {
+    switch (room->roomName) {
+        case MAINHALL: 
+            printf("MAINHALL");
+            break;
+        case DARKROOM:
+            printf("DARKROOM");
+            break;
+        case BATHROOM:
+            printf("BATHROOM");
+            break;
+        case STARS:
+            printf("STARS");
+            break;
+        case ARTROOM:
+            printf("ARTROOM");
+            break;
+        case LOUNGE:
+            printf("LOUNGE");
+            break;
+        case ARMORY:
+            printf("ARMORY");
+            break;
+        case ROOF:
+            printf("ROOF");
+            break;
+        case MORGUE:
+            printf("MORGUE");
+            break;
+        case KENNEL:
+            printf("KENNEL");
+            break;
+    }
+}
+
+void room_name_to_string(struct Room* room) {
+    switch (room->roomName) {
+        case MAINHALL: 
+            return "MAINHALL";
+            break;
+        case DARKROOM:
+            return "DARKROOM";
+            break;
+        case BATHROOM:
+            return "BATHROOM";
+            break;
+        case STARS:
+            return "STARS";
+            break;
+        case ARTROOM:
+            return "ARTROOM";
+            break;
+        case LOUNGE:
+            return "LOUNGE";
+            break;
+        case ARMORY:
+            return "ARMORY";
+            break;
+        case ROOF:
+            return "ROOF";
+            break;
+        case MORGUE:
+            return "MORGUE";
+            break;
+        case KENNEL:
+            return "KENNEL";
+            break;
+    }
+}
+
+void print_connections(struct Room* room) {
+    int i;
+    for (i = 0; i < room->numConnections; i++) {
+        print_room_name(room->outboundConnections[i]);
+        printf("\t");
+    }
+}
+
+void print_room(struct Room* room) {
+    printf("room name: %d ", room->roomName);
+    print_room_name(room);
+    printf("\nroom type: %d\n", room->roomType);
+    printf("num_connections: %d\n", room->numConnections);
+    print_connections(room);
+    printf("\n");
+    printf("\n");
+    return;
+}
+
 char* room_name_to_string() {
     return "lala";
 }
@@ -66,12 +160,11 @@ char* room_name_to_string() {
 bool is_graph_full(struct Room* roomGraph){
     int i;
     for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
-        if (roomGraph[i].numConnections >= 3
-                && roomGraph[i].numConnections <=6) {
-            return true;
+        if (roomGraph[i].numConnections < 3) {
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 // Returns a random Room, does not validate if a connection can be added
@@ -102,9 +195,7 @@ bool connection_already_exists(struct Room* x, struct Room* y) {
 
 void connect_room(struct Room* x, struct Room* y) {
     x->outboundConnections[x->numConnections] = y;
-    y->outboundConnections[y->numConnections] = x;
     x->numConnections++;
-    y->numConnections++;
     return;
 }
 
@@ -125,7 +216,8 @@ void add_random_connection(struct Room* roomList) {
     while (true) {
         A = get_random_room(roomList);
 
-        if(can_add_connection_from(A) == true) {
+        if(can_add_connection_from(A) == true
+                && A->numConnections < 6) {
             break;
         }
 
@@ -155,17 +247,13 @@ void generate_random_names(struct Room* roomList) {
     int  numNames = 0;
 
     while (numNames < ROOM_GRAPH_SIZE) {
-        printf("num named %d\n", numNames);
         int randomNameIndex = (rand() % (9 - 0 + 1));
-        printf("random name index %d\t", randomNameIndex);
-        printf("usedNames %d\n", usedNames[randomNameIndex]);
 
         if (!usedNames[randomNameIndex]) {
             usedNames[randomNameIndex] = true; 
             roomList[numNames].roomName = (enum RoomName)randomNameIndex;
             roomList[numNames].roomType = MID_ROOM;
             roomList[numNames].numConnections = 0;
-            printf("***chosen number %d\n", randomNameIndex);
             numNames++;
         } 
     }
@@ -184,31 +272,48 @@ void choose_start_and_end(struct Room* roomList) {
     roomList[randomRoom].roomType = END_ROOM;
 }
 
+
 // Initialze the roomName and roomType of each room.
 void initialize_room_list(struct Room* roomList) {
-    printf("foo\n");
     generate_random_names(roomList);
-    printf("foo\n");
     choose_start_and_end(roomList);
+    int i;
+    while (!is_graph_full(roomList)) {
+        for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
+            print_room(&roomList[i]);
+        }
+        add_random_connection(roomList);    
+    }
     return;
 }
 
+void write_room_to_file(FILE* ifp, struct Room* room) {
+    fputs("ROOM NAME: %s", room_name_to_string(room->roomName));
+}
 
 
 int main(const int argc, char** argv) {
+    char dir_name[50];
+    sprintf(dir_name, "./freitast.rooms.%d", getpid());
+    mkdir(dir_name, S_IRWXU);
+
+
     srand(time(NULL));
     struct Room roomList[ROOM_GRAPH_SIZE];
     int i;
-    for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
-        printf("room name: %d\t", roomList[i].roomName);
-        printf("room type: %d\n", roomList[i].roomType);
-    }
     
     initialize_room_list(roomList); 
 
+    char file_path[50];
+    int i;
+    for (i = 0; i < 7; i++) {
+        sprintf(file_path, "%s/room%d", dir_name, i);
+        FILE* fp = fopen(file_path, "w");
+        fclose(fp);
+    }
+
     for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
-        printf("room name: %d\t", roomList[i].roomName);
-        printf("room type: %d\n", roomList[i].roomType);
+        print_room(&roomList[i]);
     }
     return 0;
 }
