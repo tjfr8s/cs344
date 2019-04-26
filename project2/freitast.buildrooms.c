@@ -98,8 +98,8 @@ void print_room_name(struct Room* room) {
     }
 }
 
-void room_name_to_string(struct Room* room) {
-    switch (room->roomName) {
+char* room_name_to_string(enum RoomName roomName) {
+    switch (roomName) {
         case MAINHALL: 
             return "MAINHALL";
             break;
@@ -131,6 +131,7 @@ void room_name_to_string(struct Room* room) {
             return "KENNEL";
             break;
     }
+    return "";
 }
 
 void print_connections(struct Room* room) {
@@ -150,10 +151,6 @@ void print_room(struct Room* room) {
     printf("\n");
     printf("\n");
     return;
-}
-
-char* room_name_to_string() {
-    return "lala";
 }
 
 // Returns true if all rooms have 3 to 6 outbound connections.
@@ -288,7 +285,11 @@ void initialize_room_list(struct Room* roomList) {
 }
 
 void write_room_to_file(FILE* ifp, struct Room* room) {
-    fputs("ROOM NAME: %s", room_name_to_string(room->roomName));
+    fprintf(ifp, "ROOM NAME: %s\n", room_name_to_string(room->roomName));
+    int i;
+    for (i = 0; i < room->numConnections; i++) {
+        fprintf(ifp, "CONNECTION %d: %s\n", i, room_name_to_string(room->outboundConnections[i]->roomName));
+    }
 }
 
 
@@ -300,15 +301,15 @@ int main(const int argc, char** argv) {
 
     srand(time(NULL));
     struct Room roomList[ROOM_GRAPH_SIZE];
-    int i;
     
     initialize_room_list(roomList); 
 
-    char file_path[50];
     int i;
+    char file_path[50];
     for (i = 0; i < 7; i++) {
         sprintf(file_path, "%s/room%d", dir_name, i);
         FILE* fp = fopen(file_path, "w");
+        write_room_to_file(fp, &roomList[i]);
         fclose(fp);
     }
 
