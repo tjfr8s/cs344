@@ -134,6 +134,21 @@ char* room_name_to_string(enum RoomName roomName) {
     return "";
 }
 
+char* room_type_to_string(enum RoomType roomType) {
+    switch (roomType) {
+        case START_ROOM: 
+            return "START_ROOM";
+            break;
+        case END_ROOM:
+            return "END_ROOM";
+            break;
+        case MID_ROOM:
+            return "MID_ROOM";
+            break;
+    }
+    return "";
+}
+
 void print_connections(struct Room* room) {
     int i;
     for (i = 0; i < room->numConnections; i++) {
@@ -274,11 +289,13 @@ void choose_start_and_end(struct Room* roomList) {
 void initialize_room_list(struct Room* roomList) {
     generate_random_names(roomList);
     choose_start_and_end(roomList);
-    int i;
+    //int i;
     while (!is_graph_full(roomList)) {
+        /*
         for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
             print_room(&roomList[i]);
         }
+        */
         add_random_connection(roomList);    
     }
     return;
@@ -290,6 +307,7 @@ void write_room_to_file(FILE* ifp, struct Room* room) {
     for (i = 0; i < room->numConnections; i++) {
         fprintf(ifp, "CONNECTION %d: %s\n", i, room_name_to_string(room->outboundConnections[i]->roomName));
     }
+    fprintf(ifp, "ROOM TYPE: %s\n", room_type_to_string(room->roomType));
 }
 
 
@@ -313,9 +331,11 @@ int main(const int argc, char** argv) {
         fclose(fp);
     }
 
+    /*
     for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
         print_room(&roomList[i]);
     }
+    */
     return 0;
 }
 
