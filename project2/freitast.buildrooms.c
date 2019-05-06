@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <stdbool.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -45,14 +44,21 @@ enum RoomName {
     ARMORY,
     ROOF,
     MORGUE,
-    KENNEL
+    KENNEL,
+    NONE
 };
 
 enum RoomType {
     START_ROOM,
     END_ROOM,
-    MID_ROOM
+    MID_ROOM,
+    NONE_TYPE
    
+};
+
+enum bool {
+    false,
+    true
 };
 
 struct Room {
@@ -95,6 +101,9 @@ void print_room_name(struct Room* room) {
         case KENNEL:
             printf("KENNEL");
             break;
+        case NONE:
+            printf("NONE");
+            break;
     }
 }
 
@@ -130,6 +139,9 @@ char* room_name_to_string(enum RoomName roomName) {
         case KENNEL:
             return "KENNEL";
             break;
+        case NONE:
+            return "NONE";
+            break;
     }
     return "";
 }
@@ -144,6 +156,9 @@ char* room_type_to_string(enum RoomType roomType) {
             break;
         case MID_ROOM:
             return "MID_ROOM";
+            break;
+        case NONE_TYPE:
+            return "NONE";
             break;
     }
     return "";
@@ -169,7 +184,7 @@ void print_room(struct Room* room) {
 }
 
 // Returns true if all rooms have 3 to 6 outbound connections.
-bool is_graph_full(struct Room* roomGraph){
+enum bool is_graph_full(struct Room* roomGraph){
     int i;
     for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
         if (roomGraph[i].numConnections < 3) {
@@ -187,7 +202,7 @@ struct Room* get_random_room(struct Room* roomList) {
 
 // Returns true if a connection can be added from Rom x (< 6 outbound 
 // connections), valse otherwise
-bool can_add_connection_from(struct Room* x) {
+enum bool can_add_connection_from(struct Room* x) {
     if (x->numConnections <= 6) {
         return true;
     } else {
@@ -195,7 +210,7 @@ bool can_add_connection_from(struct Room* x) {
     }
 }
 
-bool connection_already_exists(struct Room* x, struct Room* y) {
+enum bool connection_already_exists(struct Room* x, struct Room* y) {
     int i;
     for (i = 0; i < x->numConnections; i++) {
         if (x->outboundConnections[i] == y) {
@@ -211,7 +226,7 @@ void connect_room(struct Room* x, struct Room* y) {
     return;
 }
 
-bool is_same_room(struct Room* x, struct Room* y) {
+enum bool is_same_room(struct Room* x, struct Room* y) {
     if (x == y) {
         return true;
     } else {
@@ -249,7 +264,7 @@ void add_random_connection(struct Room* roomList) {
 
 // Choose a random name for each room in the list.
 void generate_random_names(struct Room* roomList) {
-    bool   usedNames[10];
+    enum bool usedNames[10];
 
     int i;
     for (i = 0; i < 10; i++) {
@@ -296,7 +311,7 @@ void initialize_room_list(struct Room* roomList) {
             print_room(&roomList[i]);
         }
         */
-        add_random_connection(roomList);    
+        add_random_connection(roomList);
     }
     return;
 }
@@ -338,4 +353,3 @@ int main(const int argc, char** argv) {
     */
     return 0;
 }
-
