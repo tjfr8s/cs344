@@ -1,29 +1,3 @@
-// REQUIREMENTS:
-// Create rooms directory named `freitast.rooms.processid`.
-
-// Create 7 room files in freitast.rooms.processid directory with hard coded
-// names.
-
-// room
-// -roomName
-//  - 8 char max length
-//  - hard code 10 options and randomly pick 7
-// -roomType
-//  - START_ROOM
-//  - END_ROOM
-//  - MID_ROOM
-//  - randomly generate which room gets which type (1 start and 1 end)
-// -outboundConnections
-//  - each room has 3-6 outbound connections to other rooms
-//  - randomly assigned and outbound connections must always return.
-//  - file format
-//      ROOM NAME: <room name>
-//      CONNECTION 1: <room name>
-//      ...
-//      ROOM TYPE: <room type>
-//
-//
-//
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -320,7 +294,7 @@ void write_room_to_file(FILE* ifp, struct Room* room) {
     fprintf(ifp, "ROOM NAME: %s\n", room_name_to_string(room->roomName));
     int i;
     for (i = 0; i < room->numConnections; i++) {
-        fprintf(ifp, "CONNECTION %d: %s\n", i, room_name_to_string(room->outboundConnections[i]->roomName));
+        fprintf(ifp, "CONNECTION %d: %s\n", i + 1, room_name_to_string(room->outboundConnections[i]->roomName));
     }
     fprintf(ifp, "ROOM TYPE: %s\n", room_type_to_string(room->roomType));
 }

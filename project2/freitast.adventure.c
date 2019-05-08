@@ -8,10 +8,13 @@
 #include <string.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <pthread.h>
+#include <signal.h>
 #define BUF_SIZE 1024
 #define ROOM_GRAPH_SIZE 7
 #define MAX_CONNECTIONS 6
 #define STRING_BUF_SIZE 256
+#define TIME_FILE_PATH "./currentTime.txt"
 
 enum RoomName {
     MAINHALL,
@@ -46,6 +49,110 @@ struct Room {
     struct Room*   outboundConnections[MAX_CONNECTIONS];
     int            numConnections;
 };
+
+void print_room_name(struct Room* room);
+char* room_name_to_string(enum RoomName roomName);
+enum RoomName string_to_room_name(char* name_string);
+char* room_type_to_string(enum RoomType roomType);
+enum RoomType string_to_room_type(char* type_string);
+void print_connections(struct Room* room);
+void print_room(struct Room* room);
+void get_user_choice();
+void get_room_dir(char* newestDirName);
+void file_to_room_connection(struct Room* rooms[], 
+        struct Room* curRoom,
+        enum RoomName nameOfConnection);
+int load_rooms(struct Room* rooms[]);
+void initialize_game_state(struct Room** playerLoc, struct Room* rooms[]);
+void display_prompt(struct Room* playerLoc, struct Room* rooms[]);
+void get_time();
+enum bool move_rooms(struct Room** playerLoc, struct Room* rooms[]);
+void add_to_history(char*** history, 
+                    int* historyIndex, 
+                    int* historySize, 
+                    enum RoomName roomName);
+void* time_thread_init(void* initParam);
+void print_time_from_file();
+
+
+
+pthread_cond_t cond1 = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+
+int main(const int argc, char** argv) {
+    pthread_mutex_lock(&mutex1);
+
+    struct Room* rooms[ROOM_GRAPH_SIZE];
+    struct Room* playerLoc = NULL;
+    int          i;
+    int          j;
+    int          historySize = 2;
+    int          historyIndex = 0;
+    char**       history = malloc(sizeof(char*) * historySize);
+    pthread_t    timeThread;
+
+    pthread_create(&timeThread, NULL, time_thread_init, NULL);
+
+    memset(history, 0, sizeof(char*) * historySize);
+
+    for (i = 0; i < historySize; i++) {
+        history[i] = malloc(sizeof(char) * 10);
+        memset(history[i], 0, sizeof(char) * 10);
+    }
+    for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
+        rooms[i] = (struct Room*) malloc(sizeof(struct Room));
+        rooms[i]->roomName = NONE_NAME;
+        rooms[i]->numConnections = 0;
+        rooms[i]->roomType = MID_ROOM;
+        for (j = 0; j < MAX_CONNECTIONS; j++) {
+            rooms[i]->outboundConnections[j] = NULL;
+        }
+    }
+
+    initialize_game_state(&playerLoc, rooms);
+
+    enum bool hasQuit = false;
+    enum bool hasWon = false;
+    enum bool moveStatus = true;
+    while (!hasQuit && !hasWon) {
+        // display prompt 
+        // get user choice
+        // update the player's location and record the user's choice in history
+
+        if (moveStatus == true) {
+            add_to_history(&history, &historyIndex, 
+                           &historySize, playerLoc->roomName);
+        }
+        do {
+            if (playerLoc->roomType == END_ROOM) {
+                hasWon = true; 
+            } else {
+                display_prompt(playerLoc, rooms);
+            }
+        } while(!hasWon 
+                && (moveStatus = move_rooms(&playerLoc, rooms)) == false);
+    }
+
+    printf("YOU HAVE FOUND THE END ROOM. CONGRATULATIONS! YOU TOOK %d STEPS.\n" \
+            "YOUR PATH TO VICTORY WAS:\n", historyIndex);
+    for (i = 0; i < historyIndex; i++) {
+        printf("%s\n", history[i]);
+    }
+
+    for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
+        free(rooms[i]);
+    }
+    for(i = 0; i < historySize; i++) {
+        free(history[i]);
+    }
+    free(history);
+
+    pthread_cancel(timeThread);
+
+
+
+    return 0;
+}
 
 void print_room_name(struct Room* room) {
     switch (room->roomName) {
@@ -359,6 +466,37 @@ void display_prompt(struct Room* playerLoc, struct Room* rooms[]) {
     printf("WHERE TO? >");
 }
 
+void get_time() {
+    time_t t;
+    struct tm* curTime;
+    char timeBuf[200];
+
+    time(&t);
+    curTime = localtime(&t);
+
+    if (curTime == NULL) {
+        perror("localtime");
+        exit(EXIT_FAILURE);
+    }
+
+    strftime(timeBuf, 200, "%I:%M%P, %A, %B %d, %Y", curTime);
+    FILE* ofp = fopen(TIME_FILE_PATH, "w");
+    fprintf(ofp, "%s\n", timeBuf);
+    fclose(ofp);
+}
+
+void print_time_from_file() {
+    pthread_cond_wait(&cond1, &mutex1);
+    FILE* ifp = fopen(TIME_FILE_PATH, "r");
+    if (ifp == NULL) {
+    } else {
+        char timeBuf[200];
+        fgets(timeBuf, 200, ifp);
+        printf("\n%s", timeBuf);
+        fclose(ifp);
+    }
+}
+
 enum bool move_rooms(struct Room** playerLoc, struct Room* rooms[]) {
     enum bool successfulMove = true;
     char choiceBuf[STRING_BUF_SIZE];
@@ -373,7 +511,7 @@ enum bool move_rooms(struct Room** playerLoc, struct Room* rooms[]) {
         successfulMove = false;
     }
 
-    if (successfulMove == true) {
+    if (successfulMove == true && strcmp(choiceBuf, "time\n")) {
         choice = strtok(choiceBuf, "\n");
 
         roomNameChoice = string_to_room_name(choice);
@@ -388,11 +526,19 @@ enum bool move_rooms(struct Room** playerLoc, struct Room* rooms[]) {
         if (!isValid) {
             successfulMove = false;
         }
+    } else {
+        pthread_cond_signal(&cond1);
+        pthread_mutex_unlock(&mutex1);
+        successfulMove = false;
+        print_time_from_file();
     }
 
-    if (!successfulMove) {
+    if (!successfulMove && strcmp(choiceBuf, "time\n")) {
         printf("\nHUH? I DON’T UNDERSTAND THAT ROOM. TRY AGAIN.\n\n");
+    } else {
+        printf("\n");
     }
+
 
     return successfulMove;
 }
@@ -427,75 +573,12 @@ void add_to_history(char*** history,
 
 }
 
-
-int main(const int argc, char** argv) {
-
-    struct Room* rooms[ROOM_GRAPH_SIZE];
-    struct Room* playerLoc = NULL;
-    int i;
-    int j;
-    int historySize = 2;
-    int historyIndex = 0;
-    char** history = malloc(sizeof(char*) * historySize);
-    memset(history, 0, sizeof(char*) * historySize);
-
-    for (i = 0; i < historySize; i++) {
-        history[i] = malloc(sizeof(char) * 10);
-        memset(history[i], 0, sizeof(char) * 10);
+void* time_thread_init(void* initParam) {
+    while (true) {
+        pthread_cond_wait(&cond1, &mutex1); 
+        get_time();
+        pthread_cond_signal(&cond1);
+        pthread_mutex_unlock(&mutex1);
     }
-    for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
-        rooms[i] = (struct Room*) malloc(sizeof(struct Room));
-        rooms[i]->roomName = NONE_NAME;
-        rooms[i]->numConnections = 0;
-        rooms[i]->roomType = MID_ROOM;
-        for (j = 0; j < MAX_CONNECTIONS; j++) {
-            rooms[i]->outboundConnections[j] = NULL;
-        }
-    }
-
-    initialize_game_state(&playerLoc, rooms);
-
-    enum bool hasQuit = false;
-    enum bool hasWon = false;
-    while (!hasQuit && !hasWon) {
-        // display prompt 
-        // get user choice
-        // update the player's location and record the user's choice in history
-
-        add_to_history(&history, &historyIndex, &historySize, playerLoc->roomName);
-        do {
-            if (playerLoc->roomType == END_ROOM) {
-                hasWon = true; 
-            } else {
-                display_prompt(playerLoc, rooms);
-            }
-        } while(!hasWon && move_rooms(&playerLoc, rooms) == false);
-    }
-
-    /*
-    printf("Room states: \n");
-    for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
-        print_room(rooms[i]);
-    }
-
-    printf("Start room: \n");
-    print_room(playerLoc);
-
-    */
-    printf("\nYOU HAVE FOUND THE END ROOM. CONGRATULATIONS! YOU TOOK %d STEPS.\n" \
-            "YOUR PATH TO VICTORY WAS:\n", historyIndex);
-    for (i = 0; i < historyIndex; i++) {
-        printf("%s\n", history[i]);
-    }
-
-    for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
-        free(rooms[i]);
-    }
-    for(i = 0; i < historySize; i++) {
-        free(history[i]);
-    }
-    free(history);
-
-
-    return 0;
+    return NULL;
 }

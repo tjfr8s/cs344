@@ -1,13 +1,14 @@
 CC=gcc
-CFLAGS=-g -Wall 
+CFLAGS=-g -Wall
+CLIB=-lpthread
 
 all: freitast.buildrooms freitast.adventure
 
 freitast.buildrooms: freitast.buildrooms.o 
-	$(CC) $^ -o $@
+	$(CC) $^ -o $@ 
 
 freitast.adventure: freitast.adventure.o 
-	$(CC) $^ -o $@
+	$(CC) $^ -o $@ $(CLIB)
 
 clean:
 	-rm *.o
