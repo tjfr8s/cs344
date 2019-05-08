@@ -403,12 +403,18 @@ void add_to_history(char*** history,
                     int* historySize, 
                     enum RoomName roomName){
 
+    // Reallocate history array when capacity is reached.
     if (*historyIndex == *historySize) {
         int newHistorySize = 2 * *historySize;
-        char** newHistory = malloc(sizeof(char) * newHistorySize);
+        char** newHistory = malloc(sizeof(char*) * newHistorySize);
         int i;
-        for (i = 0; i < *historySize; i++) {
-            newHistory[i] = (*history)[i];
+        for (i = 0; i < newHistorySize; i++) {
+            newHistory[i] = malloc(sizeof(char) * 10);
+            // Move history values from old array.
+            if (i < *historySize) {
+                strcpy(newHistory[i], (*history)[i]);
+                free((*history)[i]);
+            }
         }
 
         free(*history);
@@ -416,7 +422,7 @@ void add_to_history(char*** history,
         *historySize = newHistorySize;
     }
 
-    (*history)[*historyIndex] = room_name_to_string(roomName);
+    strcpy((*history)[*historyIndex], room_name_to_string(roomName));
     *historyIndex = *historyIndex + 1;
 
 }
@@ -428,10 +434,15 @@ int main(const int argc, char** argv) {
     struct Room* playerLoc = NULL;
     int i;
     int j;
-    int historySize = 50;
+    int historySize = 2;
     int historyIndex = 0;
-    char** history = malloc(sizeof(char) * historySize);
+    char** history = malloc(sizeof(char*) * historySize);
+    memset(history, 0, sizeof(char*) * historySize);
 
+    for (i = 0; i < historySize; i++) {
+        history[i] = malloc(sizeof(char) * 10);
+        memset(history[i], 0, sizeof(char) * 10);
+    }
     for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
         rooms[i] = (struct Room*) malloc(sizeof(struct Room));
         rooms[i]->roomName = NONE_NAME;
@@ -461,13 +472,27 @@ int main(const int argc, char** argv) {
         } while(!hasWon && move_rooms(&playerLoc, rooms) == false);
     }
 
+    /*
+    printf("Room states: \n");
+    for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
+        print_room(rooms[i]);
+    }
+
+    printf("Start room: \n");
+    print_room(playerLoc);
+
+    */
     printf("\nYOU HAVE FOUND THE END ROOM. CONGRATULATIONS! YOU TOOK %d STEPS.\n" \
             "YOUR PATH TO VICTORY WAS:\n", historyIndex);
     for (i = 0; i < historyIndex; i++) {
         printf("%s\n", history[i]);
     }
+
     for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
         free(rooms[i]);
+    }
+    for(i = 0; i < historySize; i++) {
+        free(history[i]);
     }
     free(history);
 
