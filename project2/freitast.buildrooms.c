@@ -43,6 +43,51 @@ struct Room {
 };
 
 
+void print_room_name(struct Room* room);
+char* room_name_to_string(enum RoomName roomName);
+char* room_type_to_string(enum RoomType roomType);
+void print_connections(struct Room* room);
+void print_room(struct Room* room);
+enum bool is_graph_full(struct Room* roomGraph);
+struct Room* get_random_room(struct Room* roomList);
+enum bool can_add_connection_from(struct Room* x);
+enum bool connection_already_exists(struct Room* x, struct Room* y);
+void connect_room(struct Room* x, struct Room* y);
+enum bool is_same_room(struct Room* x, struct Room* y);
+void add_random_connection(struct Room* roomList);
+void generate_random_names(struct Room* roomList);
+void choose_start_and_end(struct Room* roomList);
+void initialize_room_list(struct Room* roomList);
+void write_room_to_file(FILE* ifp, struct Room* room);
+
+int main(const int argc, char** argv) {
+    char dir_name[50];
+    sprintf(dir_name, "./freitast.rooms.%d", getpid());
+    mkdir(dir_name, S_IRWXU);
+
+
+    srand(time(NULL));
+    struct Room roomList[ROOM_GRAPH_SIZE];
+    
+    initialize_room_list(roomList); 
+
+    int i;
+    char file_path[50];
+    for (i = 0; i < 7; i++) {
+        sprintf(file_path, "%s/room%d", dir_name, i);
+        FILE* fp = fopen(file_path, "w");
+        write_room_to_file(fp, &roomList[i]);
+        fclose(fp);
+    }
+
+    /*
+    for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
+        print_room(&roomList[i]);
+    }
+    */
+    return 0;
+}
+
 void print_room_name(struct Room* room) {
     switch (room->roomName) {
         case MAINHALL: 
@@ -158,7 +203,7 @@ void print_room(struct Room* room) {
 }
 
 // Returns true if all rooms have 3 to 6 outbound connections.
-enum bool is_graph_full(struct Room* roomGraph){
+enum bool is_graph_full(struct Room* roomGraph) {
     int i;
     for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
         if (roomGraph[i].numConnections < 3) {
@@ -294,36 +339,10 @@ void write_room_to_file(FILE* ifp, struct Room* room) {
     fprintf(ifp, "ROOM NAME: %s\n", room_name_to_string(room->roomName));
     int i;
     for (i = 0; i < room->numConnections; i++) {
-        fprintf(ifp, "CONNECTION %d: %s\n", i + 1, room_name_to_string(room->outboundConnections[i]->roomName));
+        fprintf(ifp, "CONNECTION %d: %s\n", 
+                i + 1, 
+                room_name_to_string(room->outboundConnections[i]->roomName));
     }
     fprintf(ifp, "ROOM TYPE: %s\n", room_type_to_string(room->roomType));
 }
 
-
-int main(const int argc, char** argv) {
-    char dir_name[50];
-    sprintf(dir_name, "./freitast.rooms.%d", getpid());
-    mkdir(dir_name, S_IRWXU);
-
-
-    srand(time(NULL));
-    struct Room roomList[ROOM_GRAPH_SIZE];
-    
-    initialize_room_list(roomList); 
-
-    int i;
-    char file_path[50];
-    for (i = 0; i < 7; i++) {
-        sprintf(file_path, "%s/room%d", dir_name, i);
-        FILE* fp = fopen(file_path, "w");
-        write_room_to_file(fp, &roomList[i]);
-        fclose(fp);
-    }
-
-    /*
-    for (i = 0; i < ROOM_GRAPH_SIZE; i++) {
-        print_room(&roomList[i]);
-    }
-    */
-    return 0;
-}
