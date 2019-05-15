@@ -4,7 +4,10 @@
 #define MAX_COMMAND_LENGTH 2048
 #define MAX_ARGS 512
 
-void getlineHandleSIGINT(int signum);
-int getInputString(char* stringBuffer);
+int     parseArguments(char* commandString, int maxArgs, int* numArgs, char** argArray);
+void    freeArgArray(char** argArray, int numArgs);
+int     tokenizeArguments(char* commandString, int maxArgs, int* numArgs, char** argArray);
+void    getlineHandleSIGINT(int signum);
+void    getInputString(char* stringBuffer);
 
 #endif 
