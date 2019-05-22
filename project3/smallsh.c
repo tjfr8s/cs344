@@ -191,6 +191,9 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
     int                 status = -5;
     struct sigaction    SIGINT_action_child = {{0}};
     bool                isBackground = false;
+    int redirSTDIN  = 0;
+    int redirSTDOUT = 0;
+    int argIndex = 0;
 
     SIGINT_action_child.sa_handler = SIG_IGN;
     SIGINT_action_child.sa_flags = SA_RESTART | SA_NODEFER;
@@ -208,10 +211,57 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
         case -1:
             perror("\nerror creating new process\n");
         case 0:
+            for (argIndex = 0; argIndex < *numArgs; argIndex++) {
+                if(strcmp(argArray[argIndex], "<") == 0 
+                        && argIndex < (*numArgs - 1)) {
+                    printf("redirect stdin from %s\n", argArray[argIndex + 1]);
+                    redirSTDIN = 1;
+
+                    int j = argIndex;
+                    while(j < (*numArgs - 2)) {
+                       char* temp = argArray[j]; 
+                       argArray[j] = argArray[j + 2];
+                       argArray[j + 2] = temp;
+                    }
+
+                    free(argArray[*numArgs - 1]);
+                    argArray[*numArgs - 1] = NULL;
+                    free(argArray[*numArgs - 2]);
+                    argArray[*numArgs - 2] = NULL;
+                    (*numArgs) = *numArgs - 2;
+
+                } else if (strcmp(argArray[argIndex], ">") == 0 
+                        && argIndex < (*numArgs - 1)) {
+                    printf("redirect stdout to %s\n", argArray[argIndex + 1]);
+                    redirSTDOUT = 1;
+
+                    int j = argIndex;
+                    while(j < (*numArgs - 2)) {
+                       char* temp = argArray[j]; 
+                       argArray[j] = argArray[j + 2];
+                       argArray[j + 2] = temp;
+                    }
+
+                    free(argArray[*numArgs - 1]);
+                    argArray[*numArgs - 1] = NULL;
+                    free(argArray[*numArgs - 2]);
+                    argArray[*numArgs - 2] = NULL;
+                    (*numArgs) = *numArgs - 2;
+                }
+            }
+
+
             if(isBackground){
                 // Ignore sigint if process is run in background
                 sigaction(SIGINT, &SIGINT_action_child, NULL);
             }
+            int j = 0;
+            printf("numargs : %d", *numArgs);
+            for(j = 0; j<*numArgs; j++) {
+                printf("arg%d: %s\n", j, argArray[j]);
+                fflush(stdout);
+            }
+
             if (execvp(argArray[0], argArray) == -1) {
                 // Exit in an error state if the command fails.
                 exit(1);

@@ -5,6 +5,7 @@
 #define MAX_ARGS 512
 #define MAX_BG_PROCS 4096
 
+void    redirection(char** argArray, int* numArgs, int* redirSTDIN, int* redirSTDOUT);
 void    checkBackgroundProcs(int* inBackground, int* numInBackground);
 void    lsBuiltIn();
 bool    isBuiltIn(char* command);
