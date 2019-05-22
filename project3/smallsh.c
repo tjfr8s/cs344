@@ -9,6 +9,8 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/wait.h>
 #include "smallsh.h"
 // Prompt user for input and recieve this input.
@@ -194,6 +196,8 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
     int redirSTDIN  = 0;
     int redirSTDOUT = 0;
     int argIndex = 0;
+    int infile = 0;
+    int outfile = 0;
 
     SIGINT_action_child.sa_handler = SIG_IGN;
     SIGINT_action_child.sa_flags = SA_RESTART | SA_NODEFER;
@@ -216,6 +220,12 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
                         && argIndex < (*numArgs - 1)) {
                     printf("redirect stdin from %s\n", argArray[argIndex + 1]);
                     redirSTDIN = 1;
+                    infile = open(argArray[argIndex + 1], O_RDONLY);
+                    if (infile == -1) {
+                        exit(1);
+                    }
+
+                    dup2(infile, STDIN_FILENO);
 
                     int j = argIndex;
                     while(j < (*numArgs - 2)) {
@@ -234,6 +244,15 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
                         && argIndex < (*numArgs - 1)) {
                     printf("redirect stdout to %s\n", argArray[argIndex + 1]);
                     redirSTDOUT = 1;
+                    outfile = open(argArray[argIndex + 1], O_CREAT | O_WRONLY | O_TRUNC, 0777);
+                    printf("%s\n", argArray[argIndex + 1]);
+                    if (outfile == -1) {
+                        printf("error opening outfile\n");
+                        fflush(stdout);
+                        exit(1);
+                    }
+
+                    dup2(outfile, STDOUT_FILENO);
 
                     int j = argIndex;
                     while(j < (*numArgs - 2)) {
@@ -253,7 +272,33 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
 
             if(isBackground){
                 // Ignore sigint if process is run in background
+                fflush(stdout);
                 sigaction(SIGINT, &SIGINT_action_child, NULL);
+                if(!redirSTDIN){
+                    printf("devnullin\n");
+                    infile = open("/dev/null", O_RDONLY);
+                    if (infile == -1) {
+                        printf("error opening outfile\n");
+                        exit(1);
+                    }
+                    dup2(infile, STDIN_FILENO);
+                }
+                if(!redirSTDOUT){
+                    printf("devnull\n");
+                    fflush(stdout);
+                    outfile = open("/dev/null", O_WRONLY);
+                    if (outfile == -1) {
+                        printf("error opening outfile\n");
+                        fflush(stdout);
+                        exit(1);
+                    }
+
+                    printf("outfile %d\n", outfile);
+                    fflush(stdout);
+
+                    dup2(outfile, STDOUT_FILENO);
+
+                }
             }
             int j = 0;
             printf("numargs : %d", *numArgs);
