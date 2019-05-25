@@ -7,12 +7,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 #include "smallsh.h"
+static bool backgroundEnabled = true;
 // Prompt user for input and recieve this input.
 
 // Parse user input.
@@ -47,27 +49,32 @@
 // - error and status 1 on fail
 int main(int argc, char** argv) {
     size_t              maxCommandStringLength = MAX_COMMAND_LENGTH + 1;
-    char                commandString[maxCommandStringLength];
+    char                commandString[maxCommandStringLength + 4];
     char*               argArray[MAX_ARGS + 1] = {};
     int                 numArgs = 0;
     int                 prevExitStatus = 0;
     int                 inBackground[MAX_BG_PROCS] = {0};
     int                 numInBackground = 0;
     struct sigaction    SIGINT_action = {{0}};
+    struct sigaction    SIGTSTP_action = {{0}};
 
-    SIGINT_action.sa_handler = shellHandleSIGINT;
+    SIGINT_action.sa_handler = SIG_IGN;
     SIGINT_action.sa_flags = SA_RESTART;
     sigfillset(&SIGINT_action.sa_mask);
     sigaction(SIGINT, &SIGINT_action, NULL);
 
+    SIGTSTP_action.sa_handler = shellHandleSIGTSTP;
+    SIGTSTP_action.sa_flags = SA_RESTART;
+    sigfillset(&SIGTSTP_action.sa_mask);
+    sigaction(SIGTSTP, &SIGTSTP_action, NULL);
+
     while(1) {
         if (numInBackground > 0) {
-            printf("num in background: %d\n", numInBackground);
             checkBackgroundProcs(inBackground, &numInBackground);
         }
         memset(&commandString, 0, maxCommandStringLength);
         getInputString(commandString);
-        printf("The input string: %s\n", commandString);
+        expandPID(commandString);
         fflush(stdout);
 
         parseArguments(commandString, MAX_ARGS, &numArgs, argArray, &prevExitStatus, inBackground, &numInBackground);
@@ -77,22 +84,25 @@ int main(int argc, char** argv) {
     return 0;
 }
 
+
 void checkBackgroundProcs(int* inBackground, int* numInBackground) {
     int status = 0;
     int waitVal = 0;
     int i;
     for (i = 0; i < MAX_BG_PROCS; i++) {
         if (inBackground[i] > 0) {
-            printf("proc in bg %d\n", inBackground[i]);
             fflush(stdout);
             if ((waitVal = waitpid(inBackground[i], &status, WNOHANG)) == -1 && errno != 10) {
                 printf("\nwaitpid error %s\n", strerror(errno));
+                fflush(stdout);
             } else if (waitVal != 0) {
                 (*numInBackground)--;
                 if (WIFEXITED(status) != 0) {
                     printf("process id: %d, exit status: %d\n", inBackground[i], WEXITSTATUS(status));
+                    fflush(stdout);
                 } else {
                     printf("process id: %d, exit signal: %d\n", inBackground[i], WTERMSIG(status));
+                    fflush(stdout);
                 }
                 inBackground[i] = 0;
             }
@@ -100,34 +110,14 @@ void checkBackgroundProcs(int* inBackground, int* numInBackground) {
     } 
 }
 
-void lsBuiltIn() {
-    struct dirent*  entry;
-    DIR*            dr = opendir(".");
-
-    if (dr == NULL) {
-        perror("couldn't open dir");
-        return;
-    }
-
-    while ((entry = readdir(dr)) != NULL) {
-        printf("%s ", entry->d_name);
-        fflush(stdout);
-    }
-
-    closedir(dr);
-    printf("\n");
-    fflush(stdout);
-    return;
-}
 
 bool isBuiltIn(char* command) {
     fflush(stdout);
-    char*   builtIns[4] = {"exit", "ls", "cd", "status"};
+    char*   builtIns[3] = {"exit", "cd", "status"};
     int     i;
-    for(i = 0; i < 4; i++) {
+    for(i = 0; i < 3; i++) {
         if (!strcmp(command, builtIns[i])) {
             return true;
-            printf("built in \n");
         }
     }
     return false;
@@ -154,11 +144,8 @@ bool hasValidNumArgs(char** argArray,
 }
 
 void executeBuiltIn(char** argArray, int numArgs, int prevExitStatus, int* inBackground, int* numInBackground) {
-    if (!strcmp("ls", argArray[0]) 
-            && hasValidNumArgs(argArray, numArgs, 1, 1, true)) {
-        lsBuiltIn();
                  
-    } else if (!strcmp("exit", argArray[0])
+    if (!strcmp("exit", argArray[0])
             && hasValidNumArgs(argArray, numArgs, 1, 1, true)) {
         freeArgArray(argArray, &numArgs);
 
@@ -166,13 +153,14 @@ void executeBuiltIn(char** argArray, int numArgs, int prevExitStatus, int* inBac
         for (i = 0; i < MAX_BG_PROCS; i++) {
             if (inBackground[i] != 0) {
                 printf("kill %d\n", inBackground[i]);
+                fflush(stdout);
                 kill(inBackground[i], SIGKILL);
             }
         }
 
         exit(0);
     } else if (!strcmp("cd", argArray[0])
-           && hasValidNumArgs(argArray, numArgs, 2, 1, true)) {
+           && hasValidNumArgs(argArray, numArgs, 3, 1, true)) {
         char* path = NULL;
         if (numArgs == 1) {
             chdir(getenv("HOME"));
@@ -184,24 +172,31 @@ void executeBuiltIn(char** argArray, int numArgs, int prevExitStatus, int* inBac
     } else if (!strcmp("status", argArray[0])
            && hasValidNumArgs(argArray, numArgs, 1, 1, true)) {
         printf("status: %d\n", prevExitStatus);
+            
+        fflush(stdout);
     } 
 }
 
 void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inBackground, int* numInBackground) {
     fflush(stdout);
-    pid_t               pid;
     int                 status = -5;
-    struct sigaction    SIGINT_action_child = {{0}};
     bool                isBackground = false;
+    struct sigaction    SIGINT_action_child = {{0}};
+    struct sigaction    SIGTSTP_action_child = {{0}};
     int redirSTDIN  = 0;
     int redirSTDOUT = 0;
     int argIndex = 0;
     int infile = 0;
     int outfile = 0;
+    pid_t pid;
 
-    SIGINT_action_child.sa_handler = SIG_IGN;
+    SIGINT_action_child.sa_handler = childHandleSIGINT;
     SIGINT_action_child.sa_flags = SA_RESTART | SA_NODEFER;
     sigfillset(&SIGINT_action_child.sa_mask);
+
+    SIGTSTP_action_child.sa_handler = SIG_IGN;
+    SIGTSTP_action_child.sa_flags = SA_RESTART | SA_NODEFER;
+    sigfillset(&SIGTSTP_action_child.sa_mask);
 
     if (!strcmp(argArray[*numArgs - 1], "&")) {
         free(argArray[*numArgs - 1]);
@@ -215,10 +210,10 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
         case -1:
             perror("\nerror creating new process\n");
         case 0:
+            sigaction(SIGTSTP, &SIGTSTP_action_child, NULL);
             for (argIndex = 0; argIndex < *numArgs; argIndex++) {
                 if(strcmp(argArray[argIndex], "<") == 0 
                         && argIndex < (*numArgs - 1)) {
-                    printf("redirect stdin from %s\n", argArray[argIndex + 1]);
                     redirSTDIN = 1;
                     infile = open(argArray[argIndex + 1], O_RDONLY);
                     if (infile == -1) {
@@ -232,6 +227,7 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
                        char* temp = argArray[j]; 
                        argArray[j] = argArray[j + 2];
                        argArray[j + 2] = temp;
+                       j++;
                     }
 
                     free(argArray[*numArgs - 1]);
@@ -239,13 +235,14 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
                     free(argArray[*numArgs - 2]);
                     argArray[*numArgs - 2] = NULL;
                     (*numArgs) = *numArgs - 2;
+                    argIndex = argIndex - 1;
+                    fflush(stdin);
 
                 } else if (strcmp(argArray[argIndex], ">") == 0 
                         && argIndex < (*numArgs - 1)) {
-                    printf("redirect stdout to %s\n", argArray[argIndex + 1]);
                     redirSTDOUT = 1;
                     outfile = open(argArray[argIndex + 1], O_CREAT | O_WRONLY | O_TRUNC, 0777);
-                    printf("%s\n", argArray[argIndex + 1]);
+                    fflush(stdout);
                     if (outfile == -1) {
                         printf("error opening outfile\n");
                         fflush(stdout);
@@ -259,6 +256,7 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
                        char* temp = argArray[j]; 
                        argArray[j] = argArray[j + 2];
                        argArray[j + 2] = temp;
+                       j++;
                     }
 
                     free(argArray[*numArgs - 1]);
@@ -266,25 +264,24 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
                     free(argArray[*numArgs - 2]);
                     argArray[*numArgs - 2] = NULL;
                     (*numArgs) = *numArgs - 2;
+                    argIndex = argIndex - 1;
                 }
             }
 
 
-            if(isBackground){
+            if(isBackground && backgroundEnabled){
                 // Ignore sigint if process is run in background
                 fflush(stdout);
-                sigaction(SIGINT, &SIGINT_action_child, NULL);
                 if(!redirSTDIN){
-                    printf("devnullin\n");
                     infile = open("/dev/null", O_RDONLY);
                     if (infile == -1) {
                         printf("error opening outfile\n");
+                        fflush(stdout);
                         exit(1);
                     }
                     dup2(infile, STDIN_FILENO);
                 }
                 if(!redirSTDOUT){
-                    printf("devnull\n");
                     fflush(stdout);
                     outfile = open("/dev/null", O_WRONLY);
                     if (outfile == -1) {
@@ -292,18 +289,16 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
                         fflush(stdout);
                         exit(1);
                     }
-
-                    printf("outfile %d\n", outfile);
                     fflush(stdout);
 
                     dup2(outfile, STDOUT_FILENO);
 
                 }
+            } else {
+                sigaction(SIGINT, &SIGINT_action_child, NULL);
             }
             int j = 0;
-            printf("numargs : %d", *numArgs);
             for(j = 0; j<*numArgs; j++) {
-                printf("arg%d: %s\n", j, argArray[j]);
                 fflush(stdout);
             }
 
@@ -312,17 +307,21 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
                 exit(1);
             }
         default:
-            if (!isBackground) {
-                printf("waiting\n");
+            if (!(isBackground && backgroundEnabled)) {
                 fflush(stdout);
                 if (waitpid(pid, &status, 0) == -1) {
                     printf("\nwaitpid error %s\n", strerror(errno));
+                    fflush(stdout);
                 }
                 if (WIFEXITED(status) != 0) {
-                    printf("finished waiting | exit status: %d\n", WEXITSTATUS(status));
+                    if (WEXITSTATUS(status) != 0) {
+                        printf("erro executing command | exit status: %d\n", WEXITSTATUS(status));
+                    }
+                    fflush(stdout);
                     *prevExitStatus = WEXITSTATUS(status);
                 } else {
                     printf("finished waiting | signal value: %d\n", WTERMSIG(status));
+                    fflush(stdout);
                     *prevExitStatus = WTERMSIG(status);
                 }
                 fflush(stdout);
@@ -335,7 +334,16 @@ void executeCommand(char** argArray, int* numArgs, int* prevExitStatus, int* inB
                 (*numInBackground)++;
                 inBackground[i] = pid;
                 printf("background process started: %d\n", inBackground[i]);
+                fflush(stdout);
             }
+    }
+}
+
+int isComment(char* arg1) {
+    if (arg1[0] == '#') {
+        return 1; 
+    } else {
+        return 0;
     }
 }
 
@@ -353,9 +361,8 @@ int parseArguments(char* commandString,
 
     if (isBuiltIn(argArray[0])) {
         executeBuiltIn(argArray, *numArgs, *prevExitStatus, inBackground, numInBackground);
-    } else  {
+    } else if (!isComment(argArray[0]))  {
         executeCommand(argArray, numArgs, prevExitStatus, inBackground, numInBackground);
-    
     }
     return 0;
 }
@@ -408,10 +415,6 @@ int tokenizeArguments(char* commandString,
     return 0;
 }
 
-void shellHandleSIGINT(int signum) {
-    char* message = "\nSIGINT received\n";
-    write(STDOUT_FILENO, message, strlen(message) + 1);
-}
 
 void childHandleSIGINT(int signum) {
     char* message = "\nChild SIGINT received\n";
@@ -419,6 +422,30 @@ void childHandleSIGINT(int signum) {
     _exit(signum);
 }
 
+void shellHandleSIGTSTP(int signum) {
+    char* message;
+    if (backgroundEnabled) {
+        backgroundEnabled = false;
+        message = "\nSIGTSTP received: disabling background processes\n";
+    } else {
+        backgroundEnabled = true;
+        message = "\nSIGTSTP received: re-enabling background processes\n";
+    }
+    write(STDOUT_FILENO, message, strlen(message) + 1);
+}
+
+void expandPID(char* commandString) {
+    char buffer[MAX_COMMAND_LENGTH + 3] = {0};
+    strcpy(buffer, commandString);
+    char* strLoc = strstr(buffer, "$$");
+    int pidIndex = (int) (strLoc - buffer);
+    pid_t pid = getpid();
+    if (strLoc != NULL) {
+        buffer[pidIndex] = '%'; 
+        buffer[pidIndex + 1] = 'd';
+    }
+    sprintf(commandString, buffer, pid);
+}
 /*******************************************************************************
  * Description: This function gets input from the user of no more than
  * MAX_COMMAND_LENGTH characters. It is robust to singnal interruption.
@@ -434,7 +461,8 @@ void getInputString(char* commandString) {
 
 
     while(1) {
-        printf("Enter a command: ");
+        fflush(stdout);
+        printf(": ");
         fflush(stdout);
         numRead = getline(&inputBuffer, &bufferSize, stdin);
         if (numRead == -1) {

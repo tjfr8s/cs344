@@ -16,7 +16,10 @@ int     parseArguments(char* commandString, int maxArgs, int* numArgs, char** ar
 void    freeArgArray(char** argArray, int* numArgs);
 int     tokenizeArguments(char* commandString, int maxArgs, int* numArgs, char** argArray);
 void    shellHandleSIGINT(int signum);
+void    shellHandleSIGTSTP(int signum);
 void    childHandleSIGINT(int signum);
+void expandPID(char* commandString);
 void    getInputString(char* stringBuffer);
+int isComment(char* arg1);
 
 #endif 
