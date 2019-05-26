@@ -12,3 +12,5 @@ clean:
 
 cleanall: clean
 	-rm smallsh 
+	-rm junk*
+	-rm mytestresults
