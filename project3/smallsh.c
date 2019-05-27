@@ -447,16 +447,6 @@ int parseArguments(char* commandString,
         return -1;
     }
 
-    printf("\n");
-    fflush(stdout);
-    int i;
-    for(i = 0; i < *numArgs; i++){
-        printf("%s ", argArray[i]);
-        fflush(stdout);
-    }
-    printf("\n");
-    fflush(stdout);
-
 
     // Execute built-in commands or external programs.
     if (isBuiltIn(argArray[0])) {
