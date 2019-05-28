@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
 		error("CLIENT: ERROR connecting");
 
-    send_to_server(socketFD, "./plaintext4");
+    send_to_server(socketFD, "./plaintext1");
     send_to_server(socketFD, "./keyfile");
 
 	close(socketFD); // Close the socket

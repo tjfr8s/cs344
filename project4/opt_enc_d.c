@@ -9,10 +9,41 @@
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
+void encrypt_file(FILE* key, FILE* text) {
+    rewind(text);
+    rewind(key);
+    int charIndex;
+    char textBuffer[BUFFER_SIZE];
+    char keyBuffer[BUFFER_SIZE];
+    char encBuffer[BUFFER_SIZE];
+    char charOptions[27] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
+        'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y',
+        'Z', ' '};
+    int i;
+	memset(textBuffer, '\0', BUFFER_SIZE);
+	memset(keyBuffer, '\0', BUFFER_SIZE);
+	memset(encBuffer, '\0', BUFFER_SIZE);
+
+    while (strstr(textBuffer, "\n") == NULL) {
+        fread(textBuffer, 1, BUFFER_SIZE, text);
+        fread(keyBuffer, 1, BUFFER_SIZE, key);
+
+        for (i = 0; i < BUFFER_SIZE && (textBuffer[i] != 0); i++) {
+            charIndex = (textBuffer[i] + encBuffer[i]) % 27;
+            encBuffer[i] = charOptions[charIndex];
+        }
+
+        printf(encBuffer);
+
+
+        memset(textBuffer, '\0', BUFFER_SIZE);
+        memset(keyBuffer, '\0', BUFFER_SIZE);
+        memset(encBuffer, '\0', BUFFER_SIZE);
+    }
+}
 void receive_file(int sockfd, FILE* tempfd) {
 	char buffer[BUFFER_SIZE];
     int charsRead;
-    int end;
 	memset(buffer, '\0', BUFFER_SIZE);
 
     while ( strstr(buffer, "\n") == NULL) {
@@ -74,11 +105,10 @@ int main(int argc, char *argv[])
 	if (establishedConnectionFD < 0) error("ERROR on accept");
     textfile = tmpfile();
     receive_file(establishedConnectionFD, textfile);
-    read_file(textfile);
-    printf("\n\n\n\n\n\n");
     keyfile = tmpfile();
     receive_file(establishedConnectionFD, keyfile);
-    read_file(keyfile);
+
+    encrypt_file(keyfile, textfile);
 
 	close(establishedConnectionFD); // Close the existing socket which is connected to the client
 
