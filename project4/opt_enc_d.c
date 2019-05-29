@@ -1,9 +1,16 @@
+#define _POSIX_C_SOURCE 1
+#define _GNU_SOURCE
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 #define BUFFER_SIZE 1024
 
@@ -64,7 +71,6 @@ void send_to_client(int sockfd, FILE* fp) {
     rewind(fp);
 
     while ((numRead = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
-        printf("foo\n");
         charsWritten = send(sockfd, buffer, strlen(buffer), 0); // Write to the server
         if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
         if (charsWritten < strlen(buffer)) printf("CLIENT: WARNING: Not all data written to socket!\n");
@@ -115,6 +121,7 @@ int main(int argc, char *argv[])
     FILE* textfile;
     FILE* keyfile;
     FILE* encfile;
+    pid_t pid;
 	socklen_t sizeOfClientInfo;
 	struct sockaddr_in serverAddress, clientAddress;
 
@@ -139,19 +146,36 @@ int main(int argc, char *argv[])
 	// Accept a connection, blocking if one is not available until one connects
 	sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
 
-	establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
-	if (establishedConnectionFD < 0) error("ERROR on accept");
-    textfile = tmpfile();
-    receive_file(establishedConnectionFD, textfile);
-    keyfile = tmpfile();
-    receive_file(establishedConnectionFD, keyfile);
-    encfile = tmpfile();
+    int exitPid = -5;
+    int status = -5;
+    while (1) {
+        while ((exitPid = waitpid(-1, &status, WNOHANG)) > 0) {
+            printf("exited: %d\n", exitPid);
+        }
+        establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
+        pid = fork();
+        switch (pid) {
+            case -1:
+                printf("error\n");
+                break;
+            case 0:
+                if (establishedConnectionFD < 0) error("ERROR on accept");
+                textfile = tmpfile();
+                receive_file(establishedConnectionFD, textfile);
+                keyfile = tmpfile();
+                receive_file(establishedConnectionFD, keyfile);
+                encfile = tmpfile();
 
-    encrypt_file(keyfile, textfile, encfile);
-    send_to_client(establishedConnectionFD, encfile);
+                encrypt_file(keyfile, textfile, encfile);
+                send_to_client(establishedConnectionFD, encfile);
 
-	close(establishedConnectionFD); // Close the existing socket which is connected to the client
-
+                close(establishedConnectionFD); // Close the existing socket which is connected to the client
+                exit(0);
+                break;
+           default:
+                close(establishedConnectionFD); // Close the existing socket which is connected to the client
+        }
+    }
 	close(listenSocketFD); // Close the listening socket
 	return 0; 
 }
