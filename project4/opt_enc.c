@@ -32,7 +32,23 @@ void send_to_server(int sockfd, char* filename) {
         printf(buffer);
         memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
     }
+}
 
+void receive_encrypted_file(int sockfd) {
+	char buffer[BUFFER_SIZE];
+    int charsRead;
+	memset(buffer, '\0', BUFFER_SIZE);
+
+    while ( strstr(buffer, "\n") == NULL) {
+        // Get the message from the client and display it
+        memset(buffer, '\0', BUFFER_SIZE);
+        charsRead = recv(sockfd, buffer, BUFFER_SIZE, 0); // Read the client's message from the socket
+        if (charsRead < 0) error("ERROR reading from socket");
+        printf(buffer);
+        // Send a Success message back to the client
+        charsRead = send(sockfd, "ok", 3, 0); // Send success back
+        if (charsRead < 0) error("ERROR writing to socket");
+    }
 }
 
 int main(int argc, char *argv[])
@@ -60,8 +76,9 @@ int main(int argc, char *argv[])
 	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
 		error("CLIENT: ERROR connecting");
 
-    send_to_server(socketFD, "./plaintext1");
+    send_to_server(socketFD, "./plaintext6");
     send_to_server(socketFD, "./keyfile");
+    receive_encrypted_file(socketFD);
 
 	close(socketFD); // Close the socket
 	return 0;

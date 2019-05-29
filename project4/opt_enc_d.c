@@ -9,13 +9,14 @@
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
-void encrypt_file(FILE* key, FILE* text) {
+void encrypt_file(FILE* key, FILE* text, FILE* encfile) {
     rewind(text);
     rewind(key);
     int charIndex;
     char textBuffer[BUFFER_SIZE];
     char keyBuffer[BUFFER_SIZE];
     char encBuffer[BUFFER_SIZE];
+    int reachedEnd = 0;
     char charOptions[27] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
         'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y',
         'Z', ' '};
@@ -24,23 +25,59 @@ void encrypt_file(FILE* key, FILE* text) {
 	memset(keyBuffer, '\0', BUFFER_SIZE);
 	memset(encBuffer, '\0', BUFFER_SIZE);
 
-    while (strstr(textBuffer, "\n") == NULL) {
-        fread(textBuffer, 1, BUFFER_SIZE, text);
-        fread(keyBuffer, 1, BUFFER_SIZE, key);
-
-        for (i = 0; i < BUFFER_SIZE && (textBuffer[i] != 0); i++) {
-            charIndex = (textBuffer[i] + encBuffer[i]) % 27;
-            encBuffer[i] = charOptions[charIndex];
+    while (!reachedEnd) {
+        if(fread(textBuffer, 1, BUFFER_SIZE, text) < 1) {
+            printf("textBuffer");
+            break;
+        }
+        if(fread(keyBuffer, 1, BUFFER_SIZE, key) < 1) {
+            printf("keyBuffer");
+            break;
         }
 
-        printf(encBuffer);
+        for (i = 0; i < BUFFER_SIZE && (textBuffer[i] != '\n'); i++) {
+            charIndex = (textBuffer[i] + keyBuffer[i]) % 27;
+            encBuffer[i] = charOptions[charIndex];
+        }
+        encBuffer[i] = '\n';
 
+        printf(encBuffer);
+        fwrite(encBuffer, BUFFER_SIZE, 1, encfile);
+        fflush(stdout);
+
+        if(strstr(textBuffer, "\n") != NULL) {
+            reachedEnd = 1;
+        }
 
         memset(textBuffer, '\0', BUFFER_SIZE);
         memset(keyBuffer, '\0', BUFFER_SIZE);
         memset(encBuffer, '\0', BUFFER_SIZE);
     }
 }
+
+void send_to_client(int sockfd, FILE* fp) {
+    char buffer[BUFFER_SIZE];
+    int charsWritten;
+    int charsRead;
+    int numRead;
+	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
+    rewind(fp);
+
+    while ((numRead = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+        printf("foo\n");
+        charsWritten = send(sockfd, buffer, strlen(buffer), 0); // Write to the server
+        if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
+        if (charsWritten < strlen(buffer)) printf("CLIENT: WARNING: Not all data written to socket!\n");
+
+        // Get return message from server
+        memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
+        charsRead = recv(sockfd, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
+        if (charsRead < 0) error("CLIENT: ERROR reading from socket");
+        printf(buffer);
+        memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
+    }
+}
+
 void receive_file(int sockfd, FILE* tempfd) {
 	char buffer[BUFFER_SIZE];
     int charsRead;
@@ -49,7 +86,7 @@ void receive_file(int sockfd, FILE* tempfd) {
     while ( strstr(buffer, "\n") == NULL) {
         // Get the message from the client and display it
         memset(buffer, '\0', BUFFER_SIZE);
-        charsRead = recv(sockfd, buffer, BUFFER_SIZE - 1, 0); // Read the client's message from the socket
+        charsRead = recv(sockfd, buffer, BUFFER_SIZE, 0); // Read the client's message from the socket
         if (charsRead < 0) error("ERROR reading from socket");
         fwrite(buffer, BUFFER_SIZE, 1, tempfd);
         // Send a Success message back to the client
@@ -77,6 +114,7 @@ int main(int argc, char *argv[])
 	int listenSocketFD, establishedConnectionFD, portNumber;
     FILE* textfile;
     FILE* keyfile;
+    FILE* encfile;
 	socklen_t sizeOfClientInfo;
 	struct sockaddr_in serverAddress, clientAddress;
 
@@ -107,8 +145,10 @@ int main(int argc, char *argv[])
     receive_file(establishedConnectionFD, textfile);
     keyfile = tmpfile();
     receive_file(establishedConnectionFD, keyfile);
+    encfile = tmpfile();
 
-    encrypt_file(keyfile, textfile);
+    encrypt_file(keyfile, textfile, encfile);
+    send_to_client(establishedConnectionFD, encfile);
 
 	close(establishedConnectionFD); // Close the existing socket which is connected to the client
 
