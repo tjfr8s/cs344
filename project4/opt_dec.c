@@ -27,13 +27,13 @@ void send_to_server(int sockfd, char* filename) {
 
         // Get return message from server
         memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
-        charsRead = recv(sockfd, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
+        charsRead = recv(sockfd, buffer, sizeof(buffer), 0); // Read data from the socket, leaving \0 at end
         if (charsRead < 0) error("CLIENT: ERROR reading from socket");
         memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
     }
 }
 
-void receive_encrypted_file(int sockfd) {
+void receive_decrypted_file(int sockfd) {
 	char buffer[BUFFER_SIZE];
     int charsRead;
 	memset(buffer, '\0', BUFFER_SIZE);
@@ -44,6 +44,7 @@ void receive_encrypted_file(int sockfd) {
         charsRead = recv(sockfd, buffer, BUFFER_SIZE, 0); // Read the client's message from the socket
         if (charsRead < 0) error("ERROR reading from socket");
         printf(buffer);
+        fflush(stdout);
         // Send a Success message back to the client
         charsRead = send(sockfd, "ok", 3, 0); // Send success back
         if (charsRead < 0) error("ERROR writing to socket");
@@ -75,9 +76,9 @@ int main(int argc, char *argv[])
 	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
 		error("CLIENT: ERROR connecting");
 
-    send_to_server(socketFD, "./plaintext4");
+    send_to_server(socketFD, "./myciphertext");
     send_to_server(socketFD, "./keyfile");
-    receive_encrypted_file(socketFD);
+    receive_decrypted_file(socketFD);
 
 	close(socketFD); // Close the socket
 	return 0;

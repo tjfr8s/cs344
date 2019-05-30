@@ -28,15 +28,15 @@ int get_char_index(char character) {
     }
     return -1;
 }
-void encrypt_file(FILE* key, FILE* text, FILE* encfile) {
-    rewind(text);
+void decrypt_file(FILE* key, FILE* text, FILE* encfile) {
+    rewind(encfile);
     rewind(key);
     int charIndex;
     char textBuffer[BUFFER_SIZE];
     char keyBuffer[BUFFER_SIZE];
     char encBuffer[BUFFER_SIZE];
     int reachedEnd = 0;
-    int textIndex;
+    int encIndex;
     int keyIndex;
     char charOptions[27] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
         'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y',
@@ -47,7 +47,7 @@ void encrypt_file(FILE* key, FILE* text, FILE* encfile) {
 	memset(encBuffer, '\0', BUFFER_SIZE);
 
     while (!reachedEnd) {
-        if(fread(textBuffer, 1, BUFFER_SIZE, text) < 1) {
+        if(fread(encBuffer, 1, BUFFER_SIZE, encfile) < 1) {
             printf("textBuffer");
             break;
         }
@@ -56,21 +56,24 @@ void encrypt_file(FILE* key, FILE* text, FILE* encfile) {
             break;
         }
 
-        for (i = 0; i < BUFFER_SIZE && (textBuffer[i] != '\n'); i++) {
-            textIndex = get_char_index(textBuffer[i]);
+        for (i = 0; i < BUFFER_SIZE && (encBuffer[i] != '\n'); i++) {
+            encIndex = get_char_index(encBuffer[i]);
             keyIndex = get_char_index(keyBuffer[i]);
-            charIndex = (textIndex + keyIndex) % 27;
-            encBuffer[i] = charOptions[charIndex];
+            charIndex = (encIndex - keyIndex);
+            if(charIndex < 0) {
+                charIndex = charIndex + 27;
+            }
+            textBuffer[i] = charOptions[charIndex];
         }
         if (i < BUFFER_SIZE) {
-            encBuffer[i] = '\n';
+            textBuffer[i] = '\n';
         }
 
-        printf(encBuffer);
-        fwrite(encBuffer, BUFFER_SIZE, 1, encfile);
+        printf(textBuffer);
         fflush(stdout);
+        fwrite(textBuffer, BUFFER_SIZE, 1, text);
 
-        if(strstr(textBuffer, "\n") != NULL) {
+        if(strstr(encBuffer, "\n") != NULL) {
             reachedEnd = 1;
         }
 
@@ -177,14 +180,14 @@ int main(int argc, char *argv[])
                 break;
             case 0:
                 if (establishedConnectionFD < 0) error("ERROR on accept");
-                textfile = tmpfile();
-                receive_file(establishedConnectionFD, textfile);
+                encfile = tmpfile();
+                receive_file(establishedConnectionFD, encfile);
                 keyfile = tmpfile();
                 receive_file(establishedConnectionFD, keyfile);
-                encfile = tmpfile();
+                textfile = tmpfile();
 
-                encrypt_file(keyfile, textfile, encfile);
-                send_to_client(establishedConnectionFD, encfile);
+                decrypt_file(keyfile, textfile, encfile);
+                send_to_client(establishedConnectionFD, textfile);
 
                 close(establishedConnectionFD); // Close the existing socket which is connected to the client
                 exit(0);
