@@ -50,6 +50,46 @@ void receive_encrypted_file(int sockfd) {
     }
 }
 
+void check_server(int socketFD) {
+	char buffer[BUFFER_SIZE];
+    int charsRead;
+    memset(buffer, '\0', BUFFER_SIZE);
+    charsRead = recv(socketFD, buffer, BUFFER_SIZE, 0); // Read the client's message from the socket
+    fflush(stdout);
+    if (charsRead < 0) error("ERROR reading from socket");
+    // Terminate if the server attempts to connect to a server other than
+    // opt_enc_d.
+    if (strcmp(buffer, "enc") != 0) {
+        fprintf(stderr, "Attempting to connect to invalid server\n");
+        exit(2);
+        charsRead = send(socketFD, "error", 6, 0); // Send success back
+        close(socketFD); // Close the socket
+    }
+
+    charsRead = send(socketFD, "ok", 3, 0); // Send success back
+
+}
+
+void check_key_size(char* textFileName, char* keyFileName) {
+    FILE* textfp = fopen(textFileName, "rb");
+    FILE* keyfp = fopen(keyFileName, "rb");
+    long textsize = -5;
+    long keysize = -5; 
+    fseek(textfp, 0L, SEEK_END);
+    textsize = ftell(textfp);
+    fclose(textfp);
+    fseek(keyfp, 0L, SEEK_END);
+    keysize = ftell(keyfp);
+    fclose(keyfp);
+
+    printf("keysize: %ld, textsize: %ld\n", keysize, textsize);
+
+    if (keysize < textsize) {
+        error("key is smaller than text file\n");
+    }
+    
+}
+
 int main(int argc, char *argv[])
 {
 	int socketFD, portNumber;
@@ -75,7 +115,12 @@ int main(int argc, char *argv[])
 	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
 		error("CLIENT: ERROR connecting");
 
-    send_to_server(socketFD, "./plaintext4");
+    // Check that we connected to a valid opt_enc_d server
+    check_server(socketFD);
+
+    check_key_size("./plaintext2", "./keyfile");
+
+    send_to_server(socketFD, "./plaintext2");
     send_to_server(socketFD, "./keyfile");
     receive_encrypted_file(socketFD);
 

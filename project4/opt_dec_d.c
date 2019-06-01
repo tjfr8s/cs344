@@ -47,6 +47,7 @@ void decrypt_file(FILE* key, FILE* text, FILE* encfile) {
 	memset(encBuffer, '\0', BUFFER_SIZE);
 
     while (!reachedEnd) {
+        sleep(1);
         if(fread(encBuffer, 1, BUFFER_SIZE, encfile) < 1) {
             printf("textBuffer");
             break;
@@ -69,7 +70,6 @@ void decrypt_file(FILE* key, FILE* text, FILE* encfile) {
             textBuffer[i] = '\n';
         }
 
-        printf(textBuffer);
         fflush(stdout);
         fwrite(textBuffer, BUFFER_SIZE, 1, text);
 
@@ -135,6 +135,22 @@ void read_file(FILE* tempfd) {
     
 }
 
+void check_client(int sockfd) {
+    int charsWritten;
+    int charsRead;
+    char* decString = "dec";
+    char buffer[BUFFER_SIZE];
+    memset(buffer, '\0', BUFFER_SIZE);
+    charsWritten = send(sockfd, decString, strlen(decString), 0); // Write to the server
+    if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
+    charsRead = recv(sockfd, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
+    if (charsRead < 0) error("ERROR reading from socket");
+    if (strcmp(buffer, "ok") != 0 ) {
+        fprintf(stderr, "Connection for invalid client\n");
+        exit(2);
+    }
+}
+
 int main(int argc, char *argv[])
 {
 	int listenSocketFD, establishedConnectionFD, portNumber;
@@ -180,6 +196,7 @@ int main(int argc, char *argv[])
                 break;
             case 0:
                 if (establishedConnectionFD < 0) error("ERROR on accept");
+                check_client(establishedConnectionFD);
                 encfile = tmpfile();
                 receive_file(establishedConnectionFD, encfile);
                 keyfile = tmpfile();

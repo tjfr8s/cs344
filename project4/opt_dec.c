@@ -51,6 +51,26 @@ void receive_decrypted_file(int sockfd) {
     }
 }
 
+void check_server(int socketFD) {
+	char buffer[BUFFER_SIZE];
+    int charsRead;
+    memset(buffer, '\0', BUFFER_SIZE);
+    charsRead = recv(socketFD, buffer, BUFFER_SIZE, 0); // Read the client's message from the socket
+    fflush(stdout);
+    if (charsRead < 0) error("ERROR reading from socket");
+    // Terminate if the server attempts to connect to a server other than
+    // opt_enc_d.
+    if (strcmp(buffer, "dec") != 0) {
+        fprintf(stderr, "Attempting to connect to invalid server\n");
+        exit(2);
+        charsRead = send(socketFD, "error", 6, 0); // Send success back
+        close(socketFD); // Close the socket
+    }
+
+    charsRead = send(socketFD, "ok", 3, 0); // Send success back
+
+}
+
 int main(int argc, char *argv[])
 {
 	int socketFD, portNumber;
@@ -76,6 +96,7 @@ int main(int argc, char *argv[])
 	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
 		error("CLIENT: ERROR connecting");
 
+    check_server(socketFD);
     send_to_server(socketFD, "./myciphertext");
     send_to_server(socketFD, "./keyfile");
     receive_decrypted_file(socketFD);

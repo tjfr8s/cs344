@@ -47,6 +47,7 @@ void encrypt_file(FILE* key, FILE* text, FILE* encfile) {
 	memset(encBuffer, '\0', BUFFER_SIZE);
 
     while (!reachedEnd) {
+        sleep(1);
         if(fread(textBuffer, 1, BUFFER_SIZE, text) < 1) {
             printf("textBuffer");
             break;
@@ -66,7 +67,6 @@ void encrypt_file(FILE* key, FILE* text, FILE* encfile) {
             encBuffer[i] = '\n';
         }
 
-        printf(encBuffer);
         fwrite(encBuffer, BUFFER_SIZE, 1, encfile);
         fflush(stdout);
 
@@ -132,6 +132,22 @@ void read_file(FILE* tempfd) {
     
 }
 
+void check_client(int sockfd) {
+    int charsWritten;
+    int charsRead;
+    char* encString = "enc";
+    char buffer[BUFFER_SIZE];
+    memset(buffer, '\0', BUFFER_SIZE);
+    charsWritten = send(sockfd, encString, strlen(encString), 0); // Write to the server
+    if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
+    charsRead = recv(sockfd, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
+    if (charsRead < 0) error("ERROR reading from socket");
+    if (strcmp(buffer, "ok") != 0 ) {
+        fprintf(stderr, "Connection for invalid client\n");
+        exit(2);
+    }
+}
+
 int main(int argc, char *argv[])
 {
 	int listenSocketFD, establishedConnectionFD, portNumber;
@@ -141,6 +157,8 @@ int main(int argc, char *argv[])
     pid_t pid;
 	socklen_t sizeOfClientInfo;
 	struct sockaddr_in serverAddress, clientAddress;
+    int exitPid = -5;
+    int status = -5;
 
 	if (argc < 2) { fprintf(stderr,"USAGE: %s port\n", argv[0]); exit(1); } // Check usage & args
 
@@ -163,8 +181,6 @@ int main(int argc, char *argv[])
 	// Accept a connection, blocking if one is not available until one connects
 	sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
 
-    int exitPid = -5;
-    int status = -5;
     while (1) {
         while ((exitPid = waitpid(-1, &status, WNOHANG)) > 0) {
             printf("exited: %d\n", exitPid);
@@ -177,6 +193,10 @@ int main(int argc, char *argv[])
                 break;
             case 0:
                 if (establishedConnectionFD < 0) error("ERROR on accept");
+
+                // Check that client connected successfully 
+                check_client(establishedConnectionFD);
+
                 textfile = tmpfile();
                 receive_file(establishedConnectionFD, textfile);
                 keyfile = tmpfile();
