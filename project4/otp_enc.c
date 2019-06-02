@@ -73,17 +73,20 @@ void check_server(int socketFD) {
     charsRead = recv(socketFD, buffer, BUFFER_SIZE, 0); // Read the client's message from the socket
 }
 
+long get_file_size(char* fileName) {
+    FILE* fp = fopen(fileName, "rb");
+    long filesize = -5;
+    fseek(fp, 0L, SEEK_END);
+    filesize = ftell(fp);
+    fclose(fp);
+    return filesize;
+}
+
 void check_key_size(char* textFileName, char* keyFileName) {
-    FILE* textfp = fopen(textFileName, "rb");
-    FILE* keyfp = fopen(keyFileName, "rb");
     long textsize = -5;
     long keysize = -5; 
-    fseek(textfp, 0L, SEEK_END);
-    textsize = ftell(textfp);
-    fclose(textfp);
-    fseek(keyfp, 0L, SEEK_END);
-    keysize = ftell(keyfp);
-    fclose(keyfp);
+    textsize = get_file_size(textFileName);
+    keysize = get_file_size(keyFileName);
 
     if (keysize < textsize) {
         fprintf(stderr, "key is smaller than text file\n");
@@ -103,8 +106,9 @@ void read_file(char* filename) {
         for (i = 0; i < numRead; i++) {
             if ((buffer[i] < 65
                     || buffer[i] > 90)
-                    && buffer[i] != 32) {
-                fprintf(stderr, "INVALID CHARACTER: char: %c val: %d\n",buffer[i], (int) buffer[i]);
+                    && buffer[i] != 32
+                    && buffer[i] != 10) {
+                fprintf(stderr, "INVALID CHARACTER: char: %c val: %d position: %d\n",buffer[i], (int) buffer[i], i);
                 fclose(ifile);
                 exit(2);
             }

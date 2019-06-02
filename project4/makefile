@@ -1,25 +1,25 @@
 CC=gcc
 CFLAGS=-g -Wall 
-all: keygen opt_enc_d opt_enc opt_dec_d opt_dec
+all: keygen otp_enc_d otp_enc otp_dec_d otp_dec
 
 keygen: keygen.o 
 	$(CC) $^ -o $@ 
 
-opt_enc_d: opt_enc_d.o 
+otp_enc_d: otp_enc_d.o 
 	$(CC) $^ -o $@ 
 	
-opt_enc: opt_enc.o 
+otp_enc: otp_enc.o 
 	$(CC) $^ -o $@ 
 
-opt_dec_d: opt_dec_d.o 
+otp_dec_d: otp_dec_d.o 
 	$(CC) $^ -o $@ 
 	
-opt_dec: opt_dec.o 
+otp_dec: otp_dec.o 
 	$(CC) $^ -o $@ 
 
 clean:
 	-rm *.o
 
 cleanall: clean
-	-rm keygen opt_enc_d opt_enc
+	-rm keygen otp_enc_d otp_enc otp_dec otp_dec_d
 

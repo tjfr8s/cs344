@@ -57,9 +57,18 @@ void decrypt_file(FILE* key, FILE* text, FILE* encfile) {
         }
 
         for (i = 0; i < BUFFER_SIZE && (encBuffer[i] != '\n'); i++) {
-            printf(encBuffer);
-            encIndex = get_char_index(encBuffer[i]);
-            keyIndex = get_char_index(keyBuffer[i]);
+            if (encBuffer[i] > 64 && encBuffer[i] < 91) {
+                encIndex = encBuffer[i] - 65; 
+            } else if (encBuffer[i] == 32) {
+                encIndex = 26;
+            }
+            //encIndex = get_char_index(encBuffer[i]);
+            if (keyBuffer[i] > 64 && keyBuffer[i] < 91) {
+                keyIndex = keyBuffer[i] - 65; 
+            } else if (keyBuffer[i] == 32) {
+                keyIndex = 26;
+            }
+            //keyIndex = get_char_index(keyBuffer[i]);
             charIndex = (encIndex - keyIndex);
             if(charIndex < 0) {
                 charIndex = charIndex + 27;
@@ -92,7 +101,6 @@ void send_to_client(int sockfd, FILE* fp) {
     rewind(fp);
 
     while ((numRead = fread(buffer, 1, sizeof(buffer) - 1, fp)) > 0) {
-        printf(buffer);
         fflush(stdout);
         charsWritten = send(sockfd, buffer, strlen(buffer), 0); // Write to the server
         if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
@@ -198,21 +206,15 @@ int main(int argc, char *argv[])
                 break;
             case 0:
                 if (establishedConnectionFD < 0) error("ERROR on accept");
-                printf("foo1\n");
                 check_client(establishedConnectionFD);
-                printf("foo2\n");
                 encfile = tmpfile();
                 receive_file(establishedConnectionFD, encfile);
-                printf("foo3\n");
                 keyfile = tmpfile();
                 receive_file(establishedConnectionFD, keyfile);
-                printf("foo4\n");
                 textfile = tmpfile();
 
                 decrypt_file(keyfile, textfile, encfile);
-                printf("foo5\n");
                 send_to_client(establishedConnectionFD, textfile);
-                printf("foo6\n");
 
                 close(establishedConnectionFD); // Close the existing socket which is connected to the client
                 exit(0);
