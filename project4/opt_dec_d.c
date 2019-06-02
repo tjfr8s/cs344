@@ -47,7 +47,6 @@ void decrypt_file(FILE* key, FILE* text, FILE* encfile) {
 	memset(encBuffer, '\0', BUFFER_SIZE);
 
     while (!reachedEnd) {
-        sleep(1);
         if(fread(encBuffer, 1, BUFFER_SIZE, encfile) < 1) {
             printf("textBuffer");
             break;
@@ -58,6 +57,7 @@ void decrypt_file(FILE* key, FILE* text, FILE* encfile) {
         }
 
         for (i = 0; i < BUFFER_SIZE && (encBuffer[i] != '\n'); i++) {
+            printf(encBuffer);
             encIndex = get_char_index(encBuffer[i]);
             keyIndex = get_char_index(keyBuffer[i]);
             charIndex = (encIndex - keyIndex);
@@ -91,7 +91,9 @@ void send_to_client(int sockfd, FILE* fp) {
 	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
     rewind(fp);
 
-    while ((numRead = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+    while ((numRead = fread(buffer, 1, sizeof(buffer) - 1, fp)) > 0) {
+        printf(buffer);
+        fflush(stdout);
         charsWritten = send(sockfd, buffer, strlen(buffer), 0); // Write to the server
         if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
         if (charsWritten < strlen(buffer)) printf("CLIENT: WARNING: Not all data written to socket!\n");
@@ -112,9 +114,9 @@ void receive_file(int sockfd, FILE* tempfd) {
     while ( strstr(buffer, "\n") == NULL) {
         // Get the message from the client and display it
         memset(buffer, '\0', BUFFER_SIZE);
-        charsRead = recv(sockfd, buffer, BUFFER_SIZE, 0); // Read the client's message from the socket
+        charsRead = recv(sockfd, buffer, BUFFER_SIZE - 1, 0); // Read the client's message from the socket
         if (charsRead < 0) error("ERROR reading from socket");
-        fwrite(buffer, BUFFER_SIZE, 1, tempfd);
+        fwrite(buffer, BUFFER_SIZE - 1, 1, tempfd);
         // Send a Success message back to the client
         charsRead = send(sockfd, "ok", 3, 0); // Send success back
         if (charsRead < 0) error("ERROR writing to socket");
@@ -196,15 +198,21 @@ int main(int argc, char *argv[])
                 break;
             case 0:
                 if (establishedConnectionFD < 0) error("ERROR on accept");
+                printf("foo1\n");
                 check_client(establishedConnectionFD);
+                printf("foo2\n");
                 encfile = tmpfile();
                 receive_file(establishedConnectionFD, encfile);
+                printf("foo3\n");
                 keyfile = tmpfile();
                 receive_file(establishedConnectionFD, keyfile);
+                printf("foo4\n");
                 textfile = tmpfile();
 
                 decrypt_file(keyfile, textfile, encfile);
+                printf("foo5\n");
                 send_to_client(establishedConnectionFD, textfile);
+                printf("foo6\n");
 
                 close(establishedConnectionFD); // Close the existing socket which is connected to the client
                 exit(0);

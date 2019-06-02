@@ -47,7 +47,6 @@ void encrypt_file(FILE* key, FILE* text, FILE* encfile) {
 	memset(encBuffer, '\0', BUFFER_SIZE);
 
     while (!reachedEnd) {
-        sleep(1);
         if(fread(textBuffer, 1, BUFFER_SIZE, text) < 1) {
             printf("textBuffer");
             break;
@@ -88,8 +87,9 @@ void send_to_client(int sockfd, FILE* fp) {
 	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
     rewind(fp);
 
-    while ((numRead = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+    while ((numRead = fread(buffer, 1, sizeof(buffer) - 1, fp)) > 0) {
         charsWritten = send(sockfd, buffer, strlen(buffer), 0); // Write to the server
+        fflush(stdout);
         if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
         if (charsWritten < strlen(buffer)) printf("CLIENT: WARNING: Not all data written to socket!\n");
 
@@ -102,20 +102,26 @@ void send_to_client(int sockfd, FILE* fp) {
 }
 
 void receive_file(int sockfd, FILE* tempfd) {
+    fflush(stdout);
 	char buffer[BUFFER_SIZE];
     int charsRead;
 	memset(buffer, '\0', BUFFER_SIZE);
+    int count = 0;
 
     while ( strstr(buffer, "\n") == NULL) {
+        count++;
         // Get the message from the client and display it
         memset(buffer, '\0', BUFFER_SIZE);
-        charsRead = recv(sockfd, buffer, BUFFER_SIZE, 0); // Read the client's message from the socket
+        charsRead = recv(sockfd, buffer, BUFFER_SIZE - 1, 0); // Read the client's message from the socket
+        fflush(stdout);
         if (charsRead < 0) error("ERROR reading from socket");
-        fwrite(buffer, BUFFER_SIZE, 1, tempfd);
+        fwrite(buffer, BUFFER_SIZE - 1, 1, tempfd);
         // Send a Success message back to the client
         charsRead = send(sockfd, "ok", 3, 0); // Send success back
         if (charsRead < 0) error("ERROR writing to socket");
+        if (charsRead < strlen("ok")) error("ERROR writing to socket");
     }
+    fflush(stdout);
 }
 
 void read_file(FILE* tempfd) {
@@ -126,7 +132,6 @@ void read_file(FILE* tempfd) {
     rewind(tempfd);
 
     while ((numRead = fread(buffer, 1, sizeof(buffer), tempfd)) > 0) {
-        printf(buffer);
         memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
     }
     
@@ -140,12 +145,14 @@ void check_client(int sockfd) {
     memset(buffer, '\0', BUFFER_SIZE);
     charsWritten = send(sockfd, encString, strlen(encString), 0); // Write to the server
     if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
-    charsRead = recv(sockfd, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
+    charsRead = recv(sockfd, buffer, sizeof(buffer), 0); // Read data from the socket, leaving \0 at end
     if (charsRead < 0) error("ERROR reading from socket");
     if (strcmp(buffer, "ok") != 0 ) {
         fprintf(stderr, "Connection for invalid client\n");
         exit(2);
     }
+
+    charsRead = send(sockfd, "ok", 3, 0); // Send success back
 }
 
 int main(int argc, char *argv[])
@@ -192,10 +199,10 @@ int main(int argc, char *argv[])
                 printf("error\n");
                 break;
             case 0:
+                check_client(establishedConnectionFD);
                 if (establishedConnectionFD < 0) error("ERROR on accept");
 
                 // Check that client connected successfully 
-                check_client(establishedConnectionFD);
 
                 textfile = tmpfile();
                 receive_file(establishedConnectionFD, textfile);
@@ -204,6 +211,7 @@ int main(int argc, char *argv[])
                 encfile = tmpfile();
 
                 encrypt_file(keyfile, textfile, encfile);
+                read_file(textfile);
                 send_to_client(establishedConnectionFD, encfile);
 
                 close(establishedConnectionFD); // Close the existing socket which is connected to the client
