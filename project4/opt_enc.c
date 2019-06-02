@@ -92,6 +92,29 @@ void check_key_size(char* textFileName, char* keyFileName) {
     
 }
 
+void read_file(char* filename) {
+    FILE* ifile = fopen(filename, "rb");
+    char buffer[1024];
+    int numRead;
+    int i;
+	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
+
+    while ((numRead = fread(buffer, 1, sizeof(buffer), ifile)) > 0) {
+        for (i = 0; i < numRead; i++) {
+            if ((buffer[i] < 65
+                    || buffer[i] > 90)
+                    && buffer[i] != 32) {
+                fprintf(stderr, "INVALID CHARACTER: char: %c val: %d\n",buffer[i], (int) buffer[i]);
+                fclose(ifile);
+                exit(2);
+            }
+        }
+        memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
+    }
+    fclose(ifile);
+    
+}
+
 int main(int argc, char *argv[])
 {
 	int socketFD, portNumber;
@@ -125,6 +148,9 @@ int main(int argc, char *argv[])
     check_server(socketFD);
 
     check_key_size(textFile, keyFile);
+    read_file(textFile);
+    read_file(keyFile);
+    
 
     send_to_server(socketFD, textFile); 
     send_to_server(socketFD, keyFile);
