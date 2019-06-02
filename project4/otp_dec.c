@@ -6,8 +6,47 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
+#include "otp_dec.h"
 
-#define BUFFER_SIZE 1024
+
+int main(int argc, char *argv[])
+{
+	int socketFD, portNumber;
+	struct sockaddr_in serverAddress;
+	struct hostent* serverHostInfo;
+    char* keyFile;
+    char* cipherFile;
+    
+	if (argc < 4) { fprintf(stderr,"USAGE: %s ciphertext key port\n", argv[0]); exit(0); } // Check usage & args
+    cipherFile = argv[1];
+    keyFile = argv[2];
+
+	// Set up the server address struct
+	memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
+	portNumber = atoi(argv[3]); // Get the port number, convert to an integer from a string
+	serverAddress.sin_family = AF_INET; // Create a network-capable socket
+	serverAddress.sin_port = htons(portNumber); // Store the port number
+	serverHostInfo = gethostbyname("localhost"); // Convert the machine name into a special form of address
+	if (serverHostInfo == NULL) { fprintf(stderr, "CLIENT: ERROR, no such host\n"); exit(0); }
+	memcpy((char*)&serverAddress.sin_addr.s_addr, (char*)serverHostInfo->h_addr, serverHostInfo->h_length); // Copy in the address
+
+	// Set up the socket
+	socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
+	if (socketFD < 0) error("CLIENT: ERROR opening socket");
+	
+	// Connect to server
+	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
+		error("CLIENT: ERROR connecting");
+
+    check_server(socketFD);
+    check_key_size(cipherFile, keyFile);
+    send_to_server(socketFD, cipherFile);
+    send_to_server(socketFD, keyFile);
+    receive_decrypted_file(socketFD);
+
+	close(socketFD); // Close the socket
+	return 0;
+}
 
 void error(const char *msg) { perror(msg); exit(0); } // Error function used for reporting issues
 
@@ -90,41 +129,3 @@ void check_key_size(char* textFileName, char* keyFileName) {
     
 }
 
-int main(int argc, char *argv[])
-{
-	int socketFD, portNumber;
-	struct sockaddr_in serverAddress;
-	struct hostent* serverHostInfo;
-    char* keyFile;
-    char* cipherFile;
-    
-	if (argc < 4) { fprintf(stderr,"USAGE: %s ciphertext key port\n", argv[0]); exit(0); } // Check usage & args
-    cipherFile = argv[1];
-    keyFile = argv[2];
-
-	// Set up the server address struct
-	memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
-	portNumber = atoi(argv[3]); // Get the port number, convert to an integer from a string
-	serverAddress.sin_family = AF_INET; // Create a network-capable socket
-	serverAddress.sin_port = htons(portNumber); // Store the port number
-	serverHostInfo = gethostbyname("localhost"); // Convert the machine name into a special form of address
-	if (serverHostInfo == NULL) { fprintf(stderr, "CLIENT: ERROR, no such host\n"); exit(0); }
-	memcpy((char*)&serverAddress.sin_addr.s_addr, (char*)serverHostInfo->h_addr, serverHostInfo->h_length); // Copy in the address
-
-	// Set up the socket
-	socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
-	if (socketFD < 0) error("CLIENT: ERROR opening socket");
-	
-	// Connect to server
-	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
-		error("CLIENT: ERROR connecting");
-
-    check_server(socketFD);
-    check_key_size(cipherFile, keyFile);
-    send_to_server(socketFD, cipherFile);
-    send_to_server(socketFD, keyFile);
-    receive_decrypted_file(socketFD);
-
-	close(socketFD); // Close the socket
-	return 0;
-}

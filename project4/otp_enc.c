@@ -6,8 +6,53 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
+#include "otp_enc.h"
 
-#define BUFFER_SIZE 1024
+
+int main(int argc, char *argv[])
+{
+	int socketFD, portNumber;
+    char* textFile;
+    char* keyFile;
+	struct sockaddr_in serverAddress;
+	struct hostent* serverHostInfo;
+    
+	if (argc < 4) { fprintf(stderr,"USAGE: %s plaintext key port\n", argv[0]); exit(0); } // Check usage & args
+    textFile = argv[1];
+    keyFile = argv[2];
+
+	// Set up the server address struct
+	memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
+	portNumber = atoi(argv[3]); // Get the port number, convert to an integer from a string
+	serverAddress.sin_family = AF_INET; // Create a network-capable socket
+	serverAddress.sin_port = htons(portNumber); // Store the port number
+	serverHostInfo = gethostbyname("localhost"); // Convert the machine name into a special form of address
+	if (serverHostInfo == NULL) { fprintf(stderr, "CLIENT: ERROR, no such host\n"); exit(0); }
+	memcpy((char*)&serverAddress.sin_addr.s_addr, (char*)serverHostInfo->h_addr, serverHostInfo->h_length); // Copy in the address
+
+	// Set up the socket
+	socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
+	if (socketFD < 0) error("CLIENT: ERROR opening socket");
+	
+	// Connect to server
+	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
+		error("CLIENT: ERROR connecting");
+
+    // Check that we connected to a valid opt_enc_d server
+    check_server(socketFD);
+
+    check_key_size(textFile, keyFile);
+    read_file(textFile);
+    read_file(keyFile);
+    
+
+    send_to_server(socketFD, textFile); 
+    send_to_server(socketFD, keyFile);
+    receive_encrypted_file(socketFD);
+
+	close(socketFD); // Close the socket
+	return 0;
+}
 
 void error(const char *msg) { perror(msg); exit(0); } // Error function used for reporting issues
 
@@ -119,47 +164,3 @@ void read_file(char* filename) {
     
 }
 
-int main(int argc, char *argv[])
-{
-	int socketFD, portNumber;
-    char* textFile;
-    char* keyFile;
-	struct sockaddr_in serverAddress;
-	struct hostent* serverHostInfo;
-    
-	if (argc < 4) { fprintf(stderr,"USAGE: %s plaintext key port\n", argv[0]); exit(0); } // Check usage & args
-    textFile = argv[1];
-    keyFile = argv[2];
-
-	// Set up the server address struct
-	memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
-	portNumber = atoi(argv[3]); // Get the port number, convert to an integer from a string
-	serverAddress.sin_family = AF_INET; // Create a network-capable socket
-	serverAddress.sin_port = htons(portNumber); // Store the port number
-	serverHostInfo = gethostbyname("localhost"); // Convert the machine name into a special form of address
-	if (serverHostInfo == NULL) { fprintf(stderr, "CLIENT: ERROR, no such host\n"); exit(0); }
-	memcpy((char*)&serverAddress.sin_addr.s_addr, (char*)serverHostInfo->h_addr, serverHostInfo->h_length); // Copy in the address
-
-	// Set up the socket
-	socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
-	if (socketFD < 0) error("CLIENT: ERROR opening socket");
-	
-	// Connect to server
-	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
-		error("CLIENT: ERROR connecting");
-
-    // Check that we connected to a valid opt_enc_d server
-    check_server(socketFD);
-
-    check_key_size(textFile, keyFile);
-    read_file(textFile);
-    read_file(keyFile);
-    
-
-    send_to_server(socketFD, textFile); 
-    send_to_server(socketFD, keyFile);
-    receive_encrypted_file(socketFD);
-
-	close(socketFD); // Close the socket
-	return 0;
-}
